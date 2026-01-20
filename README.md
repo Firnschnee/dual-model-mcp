@@ -143,4 +143,4 @@ Found a bug? Have an idea? Fork & submit a PR! 🚀
 
 MIT License – See [LICENSE](LICENSE) file
 
----
+
