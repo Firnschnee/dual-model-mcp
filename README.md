@@ -5,7 +5,7 @@ An MCP (Model Context Protocol) server that queries at the same time Claude Sonn
 Sometimes I witnessed, that an AI encounters a problem and is stuck with a certain perspective. 
 
 ## The Solution
-A MCP Server that queries both Sonnet 4.5 and GPT-5.1 and gives you two answers with differenr perspectives.
+A MCP Server that queries both Sonnet 4.5 and GPT-5.1 and gives you two answers with different perspectives.
 
 ## Features
 - ⚡ Parallel queries of both models
