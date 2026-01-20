@@ -1,0 +1,25 @@
+{
+  "name": "dual-model-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server that queries Claude Sonnet 4.5 and GPT-5.1 simultaneously via OpenRouter",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc && node -e \"console.log('✅ Build successful!')\"",
+    "dev": "tsc --watch",
+    "start": "node build/index.js",
+    "prepare": "npm run build"
+  },
+  "keywords": ["mcp", "openrouter", "claude", "gpt"],
+  "author": "Firnschnee",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}
