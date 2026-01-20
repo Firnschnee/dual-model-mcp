@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-An MCP (Model Context Protocol) server that queries Claude Sonnet 4.5 and OpenAI GPT-5.1 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
+A MCP (Model Context Protocol) server that queries Claude Sonnet 4.5 and OpenAI GPT-5.1 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
 
 ## The Problem
 
@@ -142,5 +142,6 @@ Found a bug? Have an idea? Fork & submit a PR! 🚀
 ## License
 
 MIT License – See [LICENSE](LICENSE) file
+
 
 
