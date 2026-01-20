@@ -144,8 +144,3 @@ Found a bug? Have an idea? Fork & submit a PR! 🚀
 MIT License – See [LICENSE](LICENSE) file
 
 ---
-
-**Made with ❤️ by [Firnschnee](https://github.com/Firnschnee)**
-
-Questions? Open an issue!
-```
