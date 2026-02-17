@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-A MCP (Model Context Protocol) server that queries Claude Sonnet 4.5 and OpenAI GPT-5.1 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
+A MCP (Model Context Protocol) server that queries Claude Sonnet 4.5 and OpenAI GPT-5.2 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
 
 ## The Problem
 
@@ -8,7 +8,7 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 
 ## The Solution
 
-**Dual Model MCP Server** sends your prompt to both Sonnet and GPT-5.1 **simultaneously**, giving you two independent, high-quality responses side-by-side. Compare, contrast, combine—all in one go. Perfect for:
+**Dual Model MCP Server** sends your prompt to both Sonnet and GPT-5.2 **simultaneously**, giving you two independent, high-quality responses side-by-side. Compare, contrast, combine—all in one go. Perfect for:
 
 - **Decision-making:** See technical/medical/business/research/legal questions from multiple angles
 - **Quality assurance:** Spot blind spots in reasoning or missed edge cases
@@ -114,7 +114,7 @@ Edit `src/index.ts`, line ~20:
 ```typescript
 const MODELS = {
   SONNET: "anthropic/claude-sonnet-4.5",
-  GPT5: "openai/gpt-5.1",  // Change to any OpenRouter model
+  GPT5: "openai/gpt-5.2",  // Change to any OpenRouter model
 } as const;
 ```
 
@@ -142,6 +142,3 @@ Found a bug? Have an idea? Fork & submit a PR! 🚀
 ## License
 
 MIT License – See [LICENSE](LICENSE) file
-
-
-
