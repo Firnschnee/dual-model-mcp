@@ -20,7 +20,7 @@ if (!OPENROUTER_API_KEY) {
 
 const MODELS = {
   SONNET: "anthropic/claude-sonnet-4.5",
-  GPT5: "openai/gpt-5.1",
+  GPT5: "openai/gpt-5.2",
 } as const;
 
 // Dein Standard System-Prompt
@@ -164,7 +164,7 @@ const server = new Server(
 const DUAL_QUERY_TOOL: Tool = {
   name: "query_dual_models",
   description:
-    "Schickt eine Prompt gleichzeitig an Claude Sonnet 4.5 und GPT-5.1. Standard: strukturierte Antworten in 6-8 Absätzen (Kernanalyse, Kontext, Evidenz, Argumentation, Gegenargumente, Reflexion, Fazit).",
+    "Schickt eine Prompt gleichzeitig an Claude Sonnet 4.5 und gpt-5.2. Standard: strukturierte Antworten in 6-8 Absätzen (Kernanalyse, Kontext, Evidenz, Argumentation, Gegenargumente, Reflexion, Fazit).",
   inputSchema: {
     type: "object",
     properties: {
@@ -207,7 +207,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 ${"=".repeat(50)}
 ${result.sonnet_response}
 
-🤖 **OPENAI GPT-5.1**
+🤖 **OPENAI gpt-5.2**
 ${"=".repeat(50)}
 ${result.gpt5_response}
 
@@ -246,3 +246,4 @@ main().catch((error) => {
   console.error("💥 Fatal error:", error);
   process.exit(1);
 });
+
