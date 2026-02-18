@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-A MCP (Model Context Protocol) server that queries Claude Sonnet 4.5 and OpenAI GPT-5.2 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
+A MCP (Model Context Protocol) server that queries Claude Sonnet 4.6 and OpenAI GPT-5.2 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
 
 ## The Problem
 
@@ -113,7 +113,7 @@ Be aware, that this *might* cost a lot of tokens! max_tokens is currently set to
 Edit `src/index.ts`, line ~20:
 ```typescript
 const MODELS = {
-  SONNET: "anthropic/claude-sonnet-4.5",
+  SONNET: "anthropic/claude-sonnet-4.6",
   GPT5: "openai/gpt-5.2",  // Change to any OpenRouter model
 } as const;
 ```
