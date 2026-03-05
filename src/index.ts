@@ -207,7 +207,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 ${"=".repeat(50)}
 ${result.sonnet_response}
 
-🤖 **OPENAI gpt-5.2**
+🤖 **OPENAI gpt-5.4**
 ${"=".repeat(50)}
 ${result.gpt5_response}
 
@@ -246,5 +246,6 @@ main().catch((error) => {
   console.error("💥 Fatal error:", error);
   process.exit(1);
 });
+
 
 
