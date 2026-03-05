@@ -20,7 +20,7 @@ if (!OPENROUTER_API_KEY) {
 
 const MODELS = {
   SONNET: "anthropic/claude-sonnet-4.6",
-  GPT5: "openai/gpt-5.2",
+  GPT5: "openai/gpt-5.4",
 } as const;
 
 // Dein Standard System-Prompt
@@ -246,4 +246,5 @@ main().catch((error) => {
   console.error("💥 Fatal error:", error);
   process.exit(1);
 });
+
 
