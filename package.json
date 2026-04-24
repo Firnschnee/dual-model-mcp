@@ -1,7 +1,7 @@
 {
   "name": "dual-model-mcp-server",
   "version": "1.0.0",
-  "description": "MCP Server that queries Claude Sonnet 4.5 and GPT-5.4 simultaneously via OpenRouter",
+  "description": "MCP Server that queries Claude Sonnet 4.5 and GPT-5.5 simultaneously via OpenRouter",
   "type": "module",
   "main": "build/index.js",
   "scripts": {
