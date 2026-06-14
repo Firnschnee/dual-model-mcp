@@ -17,12 +17,12 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 
 ## Features
 
-- ⚡ **Parallel queries** – Both models respond simultaneously, not sequentially
-- 🛡️ **Resilient** – If one model fails, you still get the other's answer instead of a total error
-- 📋 **Structured responses** – 6-8 concise paragraphs (analysis → context → evidence → arguments → alternatives → reflection → conclusion)
-- 🔧 **Easy integration** – Works seamlessly with Cherry Studio, Claude Desktop, or any MCP client
-- 🎯 **Customizable system prompts** – Use default structured prompt or define your own
-- 🚀 **Autostart support** – Windows Task Scheduler integration for headless operation
+- **Parallel queries** – Both models respond simultaneously, not sequentially
+- **Resilient** – If one model fails, you still get the other's answer instead of a total error
+- **Structured responses** – 6-8 concise paragraphs (analysis → context → evidence → arguments → alternatives → reflection → conclusion)
+- **Easy integration** – Works seamlessly with Cherry Studio, Claude Desktop, or any MCP client
+- **Customizable system prompts** – Use default structured prompt or define your own
+- **Autostart support** – Windows Task Scheduler integration for headless operation
 
 ## Quick Start
 
@@ -143,7 +143,7 @@ npm run build
 
 ## Contributing
 
-Found a bug? Have an idea? Fork & submit a PR! 🚀
+Found a bug? Have an idea? Fork & submit a PR! 
 
 ## License
 
