@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-A MCP (Model Context Protocol) server that queries Claude Opus 4.8 and OpenAI GPT-5.5 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
+A MCP server that queries Claude Opus 4.8 and OpenAI GPT-5.5 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
 
 ## The Problem
 
