@@ -19,7 +19,7 @@ if (!OPENROUTER_API_KEY) {
 }
 
 const MODELS = {
-  SONNET: "anthropic/claude-sonnet-4.6",
+  OPUS: "anthropic/claude-opus-4.8",
   GPT5: "openai/gpt-5.5",
 } as const;
 
@@ -36,7 +36,7 @@ const DEFAULT_SYSTEM_PROMPT = `Du antwortest strukturiert und prägnant in 6-8 A
 Antworte prägnant, nutze Fachbegriffe korrekt, und erkenne komplexe Themen an.`;
 
 interface DualModelResponse {
-  sonnet_response: string;
+  opus_response: string;
   gpt5_response: string;
   metadata: {
     timestamp: string;
@@ -123,6 +123,11 @@ async function queryModel(
   }
 }
 
+function errorMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message;
+  return String(reason);
+}
+
 async function queryBothModels(
   prompt: string,
   customSystemPrompt?: string
@@ -131,15 +136,37 @@ async function queryBothModels(
 
   console.error(`🚀 Starte parallele Queries für beide Modelle...`);
 
-  const [sonnetResponse, gpt5Response] = await Promise.all([
-    queryModel(MODELS.SONNET, prompt, systemPrompt),
+  const [opusResult, gpt5Result] = await Promise.allSettled([
+    queryModel(MODELS.OPUS, prompt, systemPrompt),
     queryModel(MODELS.GPT5, prompt, systemPrompt),
   ]);
 
-  console.error(`✅ Beide Modelle haben geantwortet!`);
+  // Ein gescheitertes Modell darf das andere nicht mitreißen.
+  if (opusResult.status === "rejected" && gpt5Result.status === "rejected") {
+    throw new Error(
+      `Beide Modelle sind gescheitert.\n` +
+        `Opus 4.8: ${errorMessage(opusResult.reason)}\n` +
+        `GPT-5.5: ${errorMessage(gpt5Result.reason)}`
+    );
+  }
+
+  const opusResponse =
+    opusResult.status === "fulfilled"
+      ? opusResult.value
+      : `❌ Opus 4.8 nicht verfügbar: ${errorMessage(opusResult.reason)}`;
+  const gpt5Response =
+    gpt5Result.status === "fulfilled"
+      ? gpt5Result.value
+      : `❌ GPT-5.5 nicht verfügbar: ${errorMessage(gpt5Result.reason)}`;
+
+  if (opusResult.status === "fulfilled" && gpt5Result.status === "fulfilled") {
+    console.error(`✅ Beide Modelle haben geantwortet!`);
+  } else {
+    console.error(`⚠️ Nur ein Modell hat geantwortet, liefere Teilergebnis.`);
+  }
 
   return {
-    sonnet_response: sonnetResponse,
+    opus_response: opusResponse,
     gpt5_response: gpt5Response,
     metadata: {
       timestamp: new Date().toISOString(),
@@ -164,7 +191,7 @@ const server = new Server(
 const DUAL_QUERY_TOOL: Tool = {
   name: "query_dual_models",
   description:
-    "Schickt eine Prompt gleichzeitig an Claude Sonnet 4.6 und gpt-5.5. Standard: strukturierte Antworten in 6-8 Absätzen (Kernanalyse, Kontext, Evidenz, Argumentation, Gegenargumente, Reflexion, Fazit).",
+    "Schickt eine Prompt gleichzeitig an Claude Opus 4.8 und GPT-5.5. Standard: strukturierte Antworten in 6-8 Absätzen (Kernanalyse, Kontext, Evidenz, Argumentation, Gegenargumente, Reflexion, Fazit).",
   inputSchema: {
     type: "object",
     properties: {
@@ -203,9 +230,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const result = await queryBothModels(prompt, systemPrompt);
 
     const formattedText = `
-🤖 **CLAUDE SONNET 4.6**
+🤖 **CLAUDE OPUS 4.8**
 ${"=".repeat(50)}
-${result.sonnet_response}
+${result.opus_response}
 
 🤖 **OPENAI GPT-5.5**
 ${"=".repeat(50)}
@@ -238,7 +265,7 @@ async function main() {
   await server.connect(transport);
 
   console.error("✅ Server läuft! Warte auf MCP-Anfragen via STDIO...");
-  console.error(`📡 Modelle: ${MODELS.SONNET} & ${MODELS.GPT5}`);
+  console.error(`📡 Modelle: ${MODELS.OPUS} & ${MODELS.GPT5}`);
   console.error("📝 Standard System-Prompt: Strukturiert, 6-8 Absätze, prägnant");
 }
 

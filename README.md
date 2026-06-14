@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-A MCP (Model Context Protocol) server that queries Claude Sonnet 4.6 and OpenAI GPT-5.5 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
+A MCP (Model Context Protocol) server that queries Claude Opus 4.8 and OpenAI GPT-5.5 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
 
 ## The Problem
 
@@ -8,7 +8,7 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 
 ## The Solution
 
-**Dual Model MCP Server** sends your prompt to both Sonnet and GPT-5. **simultaneously**, giving you two independent, high-quality responses side-by-side. Compare, contrast, combine—all in one go. Perfect for:
+**Dual Model MCP Server** sends your prompt to both Opus and GPT-5. **simultaneously**, giving you two independent, high-quality responses side-by-side. Compare, contrast, combine—all in one go. Perfect for:
 
 - **Decision-making:** See technical/medical/business/research/legal questions from multiple angles
 - **Quality assurance:** Spot blind spots in reasoning or missed edge cases
@@ -18,6 +18,7 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 ## Features
 
 - ⚡ **Parallel queries** – Both models respond simultaneously, not sequentially
+- 🛡️ **Resilient** – If one model fails, you still get the other's answer instead of a total error
 - 📋 **Structured responses** – 6-8 concise paragraphs (analysis → context → evidence → arguments → alternatives → reflection → conclusion)
 - 🔧 **Easy integration** – Works seamlessly with Cherry Studio, Claude Desktop, or any MCP client
 - 🎯 **Customizable system prompts** – Use default structured prompt or define your own
@@ -40,10 +41,15 @@ npm install
    - Create an account / sign in
    - Copy your API key from settings
 
-2. **Create `.env` file:**
+2. **Create `.env` file** (copy the template):
+   ```bash
+   cp .env.example .env
+   ```
+   Then edit `.env` and paste your key:
    ```
    OPENROUTER_API_KEY=your_actual_api_key_here
    ```
+   `.env` is gitignored, so your key never lands in version control.
 
 3. **Build & run:**
    ```bash
@@ -113,7 +119,7 @@ Be aware, that this *might* cost a lot of tokens! max_tokens is currently set to
 Edit `src/index.ts`, line ~20:
 ```typescript
 const MODELS = {
-  SONNET: "anthropic/claude-sonnet-4.6",
+  OPUS: "anthropic/claude-opus-4.8",
   GPT5: "openai/gpt-5.5",  // Change to any OpenRouter model
 } as const;
 ```

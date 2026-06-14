@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+
+# Secrets - never commit the real key
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
