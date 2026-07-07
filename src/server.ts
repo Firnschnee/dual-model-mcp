@@ -13,7 +13,7 @@ if (!OPENROUTER_API_KEY) {
   process.exit(1);
 }
 
-export const VERSION = "0.8.0";
+export const VERSION = "1.0.0";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
 const DEFAULT_MODELS = ["anthropic/claude-opus-4.8", "openai/gpt-5.5"];

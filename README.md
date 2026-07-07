@@ -2,6 +2,8 @@
 
 An MCP server that queries multiple LLMs (default: Claude Opus 4.8 and OpenAI GPT-5.5) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
 
+Runs locally over stdio (Claude Code, Claude Desktop, Cherry Studio) **and** remotely over Streamable HTTP – so you can use it from claude.ai on the web and in the mobile apps as a [custom connector](#with-claudeai-web--mobile).
+
 ## The Problem
 
 Sometimes a single AI model gets stuck in a particular perspective or reasoning pattern. You ask a question, get a good answer, but you know there's another angle, another approach that might be equally valuable (or better). Switching between different models, waiting for separate responses, losing context. It's tedious.
@@ -25,6 +27,7 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 - **N models, not just two** – Configure any number of OpenRouter models
 - **Structured responses** – Default system prompt produces 6-8 concise paragraphs (analysis, context, evidence, arguments, alternatives, reflection, conclusion); custom system prompts supported
 - **Easy integration** – Works with Claude Code, Claude Desktop, Cherry Studio, or any MCP client
+- **Remote access** – Optional HTTP mode serves the same tool over HTTPS for claude.ai (web/mobile) via custom connector, secured by a secret URL path
 
 ## Quick Start
 
@@ -90,6 +93,36 @@ Or add it to a single project via `.mcp.json` in the project root:
 
 Then ask Claude Code to use the `query_dual_models` tool, e.g. *"Frag beide Modelle: ... und synthetisiere die Antworten."*
 
+### With claude.ai (web & mobile)
+
+claude.ai talks to remote MCP servers over Streamable HTTP. The HTTP entry point serves exactly that; you need a server with a public HTTPS domain and a reverse proxy.
+
+1. **On your server:** clone, install, and configure:
+   ```bash
+   git clone https://github.com/Firnschnee/dual-model-mcp.git
+   cd dual-model-mcp && npm ci
+   ```
+   In `.env` (or a systemd `EnvironmentFile`), set your API key plus:
+   ```
+   MCP_PATH_SECRET=$(openssl rand -hex 24)
+   ```
+2. **Run the HTTP entry point** (ideally as a systemd service):
+   ```bash
+   npm run start:http
+   ```
+   It binds to `127.0.0.1:3777` and serves MCP at `/<MCP_PATH_SECRET>/mcp`. Requests to any other path get a bare 404.
+3. **Route it through your reverse proxy.** Caddy example:
+   ```
+   your-domain.example {
+       handle /<MCP_PATH_SECRET>/mcp {
+           reverse_proxy 127.0.0.1:3777
+       }
+   }
+   ```
+4. **Add the connector in claude.ai:** Settings → Connectors → Add custom connector → `https://your-domain.example/<MCP_PATH_SECRET>/mcp`. The tool then works in web chats and the mobile apps.
+
+**Security model:** the secret path is the only authentication – anyone who knows the URL can spend your OpenRouter credit. Keep the URL private, set a spending limit in the OpenRouter dashboard as a backstop, and rotate the secret (env file + proxy + connector URL) if it ever leaks. For anything beyond personal use, put proper OAuth in front instead.
+
 ### With Cherry Studio
 
 1. Open Cherry Studio
@@ -126,6 +159,9 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | `MAX_TOKENS` | `6000` | Max output tokens per model |
 | `TEMPERATURE` | `0.7` | Sampling temperature |
 | `REQUEST_TIMEOUT_MS` | `120000` | Per-request timeout |
+| `MCP_PATH_SECRET` | (required in HTTP mode) | Secret URL path segment, min. 16 chars |
+| `MCP_HTTP_HOST` | `127.0.0.1` | HTTP bind address (keep local behind a reverse proxy) |
+| `MCP_HTTP_PORT` | `3777` | HTTP port |
 
 No rebuild needed after changing `.env`; the MCP client restarts the server on demand.
 
