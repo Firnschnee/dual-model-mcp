@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-A MCP server that queries Claude Opus 4.8 and OpenAI GPT-5.5 **in parallel** via OpenRouter and returns structured, multi-perspective responses.
+An MCP server that queries multiple LLMs (default: Claude Opus 4.8 and OpenAI GPT-5.5) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
 
 ## The Problem
 
@@ -8,7 +8,7 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 
 ## The Solution
 
-**Dual Model MCP Server** sends your prompt to both Opus and GPT-5. **simultaneously**, giving you two independent, high-quality responses side-by-side. Compare, contrast, combine—all in one go. Perfect for:
+**Dual Model MCP Server** sends your prompt to multiple models **simultaneously**, giving you independent, high-quality responses side-by-side. Compare, contrast, combine, all in one go. Perfect for:
 
 - **Decision-making:** See technical/medical/business/research/legal questions from multiple angles
 - **Quality assurance:** Spot blind spots in reasoning or missed edge cases
@@ -17,12 +17,14 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 
 ## Features
 
-- **Parallel queries** – Both models respond simultaneously, not sequentially
-- **Resilient** – If one model fails, you still get the other's answer instead of a total error
-- **Structured responses** – 6-8 concise paragraphs (analysis → context → evidence → arguments → alternatives → reflection → conclusion)
-- **Easy integration** – Works seamlessly with Cherry Studio, Claude Desktop, or any MCP client
-- **Customizable system prompts** – Use default structured prompt or define your own
-- **Autostart support** – Windows Task Scheduler integration for headless operation
+- **Parallel queries** – All models respond simultaneously, not sequentially
+- **Resilient** – If one model fails, you still get the others' answers instead of a total error
+- **Synthesis step (optional)** – A third, cheap model compares the answers: convergences, contradictions, unique points
+- **Token usage reporting** – Every response includes per-model and total token counts
+- **Configurable without rebuild** – Models, max_tokens, temperature, timeout via `.env`; per-call overrides via tool parameters
+- **N models, not just two** – Configure any number of OpenRouter models
+- **Structured responses** – Default system prompt produces 6-8 concise paragraphs (analysis, context, evidence, arguments, alternatives, reflection, conclusion); custom system prompts supported
+- **Easy integration** – Works with Claude Code, Claude Desktop, Cherry Studio, or any MCP client
 
 ## Quick Start
 
@@ -33,6 +35,8 @@ git clone https://github.com/Firnschnee/dual-model-mcp.git
 cd dual-model-mcp
 npm install
 ```
+
+`npm install` builds the server automatically (via the `prepare` script).
 
 ### Setup
 
@@ -49,11 +53,10 @@ npm install
    ```
    OPENROUTER_API_KEY=your_actual_api_key_here
    ```
-   `.env` is gitignored, so your key never lands in version control.
+   `.env` is gitignored, so your key never lands in version control. The server loads `.env` relative to its own location, so it works no matter which working directory your MCP client uses.
 
-3. **Build & run:**
+3. **Verify:**
    ```bash
-   npm run build
    npm start
    ```
 
@@ -62,7 +65,30 @@ npm install
    ✅ Server läuft! Warte auf MCP-Anfragen via STDIO...
    ```
 
+   Stop it with `Ctrl+C`. You do not need to keep it running: MCP clients start the server themselves as a child process whenever they need it.
+
 ## Usage
+
+### With Claude Code
+
+```bash
+claude mcp add --scope user dual-model -- node C:/path/to/dual-model-mcp/build/index.js
+```
+
+Or add it to a single project via `.mcp.json` in the project root:
+
+```json
+{
+  "mcpServers": {
+    "dual-model": {
+      "command": "node",
+      "args": ["C:/path/to/dual-model-mcp/build/index.js"]
+    }
+  }
+}
+```
+
+Then ask Claude Code to use the `query_dual_models` tool, e.g. *"Frag beide Modelle: ... und synthetisiere die Antworten."*
 
 ### With Cherry Studio
 
@@ -71,32 +97,37 @@ npm install
 3. Fill in:
    - **Name:** `Dual Model MCP`
    - **Command:** `node`
-   - **Arguments:** `C:\Users\[YourUsername]\dual-model-mcp\build\index.js`
-   - **Working directory:** `C:\Users\[YourUsername]\dual-model-mcp`
-
+   - **Arguments:** `C:\path\to\dual-model-mcp\build\index.js`
 4. Save & restart Cherry Studio
-5. Choose the MCP Server in the chat windows, ask a question & both models respond!
+5. Choose the MCP server in the chat window, ask a question, and all models respond
 
-## Autostart on Windows
+### Tool parameters
 
-Make the server start automatically on boot:
+`query_dual_models` accepts:
 
-1. Open **Task Scheduler** (`Win + R` → `taskschd.msc`)
-2. **Create Basic Task**
-3. **General:**
-   - Name: `Dual Model MCP Server`
-   - ✅ Run with highest privileges
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | string | (required) | The prompt sent to all models |
+| `system_prompt` | string | structured 6-8 paragraph prompt | Custom system prompt |
+| `models` | string[] | from `.env` / built-in | OpenRouter model IDs for this call only |
+| `max_tokens` | number | 6000 | Max output tokens per model |
+| `temperature` | number | 0.7 | Sampling temperature (0-2) |
+| `synthesize` | boolean | false | Adds a comparison step: convergences, contradictions, unique points |
 
-4. **Trigger:**
-   - At startup
+## Configuration
 
-5. **Action:**
-   - Program: `C:\Program Files\nodejs\node.exe`
-   - Arguments: `C:\Users\[YourUsername]\dual-model-mcp\build\index.js`
-   - Start in: `C:\Users\[YourUsername]\dual-model-mcp`
+All settings live in `.env` (see [.env.example](.env.example)):
 
-6. Finish
-7. Test: Restart your PC, then check if server started
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENROUTER_API_KEY` | (required) | Your OpenRouter API key |
+| `MODELS` | `anthropic/claude-opus-4.8,openai/gpt-5.5` | Comma-separated model IDs to query in parallel |
+| `SYNTHESIS_MODEL` | `anthropic/claude-haiku-4.5` | Model for the synthesis step |
+| `MAX_TOKENS` | `6000` | Max output tokens per model |
+| `TEMPERATURE` | `0.7` | Sampling temperature |
+| `REQUEST_TIMEOUT_MS` | `120000` | Per-request timeout |
+
+No rebuild needed after changing `.env`; the MCP client restarts the server on demand.
 
 ## Stack & Dependencies
 
@@ -105,47 +136,25 @@ Make the server start automatically on boot:
 | **Language** | TypeScript |
 | **Protocol** | Model Context Protocol (MCP) |
 | **API** | OpenRouter (supports 200+ models) |
-| **Runtime** | Node.js 18+ |
+| **Runtime** | Node.js 18+ (native `fetch`, no HTTP client dependency) |
 | **Build** | tsc + npm |
 
 ## Cost & Token Usage
 
-Be aware, that this *might* cost a lot of tokens! max_tokens is currently set to 6000 to guarantee a deep dive analysis on almost any topic. 
+Be aware that this *might* cost a lot of tokens! `max_tokens` defaults to 6000 per model to allow deep-dive analyses. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
 
-## Customization
+## Testing
 
-### Use different models
-
-Edit `src/index.ts`, line ~20:
-```typescript
-const MODELS = {
-  OPUS: "anthropic/claude-opus-4.8",
-  GPT5: "openai/gpt-5.5",  // Change to any OpenRouter model
-} as const;
-```
-
-### Adjust response length
-
-In `src/index.ts`, find `queryModel()`:
-```typescript
-const requestBody: OpenRouterRequest = {
-  model,
-  messages,
-  temperature: 0.7,      // 0–1, lower = more consistent
-  max_tokens: 6000,      // Increase for longer responses
-};
-```
-
-Then rebuild:
 ```bash
-npm run build
+npm test
 ```
+
+Runs a minimal smoke test: starts the built server, sends one short prompt with a one-sentence system prompt, prints the response. Costs a few hundred tokens.
 
 ## Contributing
 
-Found a bug? Have an idea? Fork & submit a PR! 
+Found a bug? Have an idea? Fork & submit a PR!
 
 ## License
 
 MIT License – See [LICENSE](LICENSE) file
-

@@ -1,29 +1,56 @@
 #!/usr/bin/env node
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  Tool,
-} from "@modelcontextprotocol/sdk/types.js";
-import axios, { AxiosError } from "axios";
+import { z } from "zod";
 import * as dotenv from "dotenv";
+import { fileURLToPath } from "node:url";
 
-dotenv.config();
+// .env relativ zum Skript laden, nicht zum Arbeitsverzeichnis:
+// MCP-Clients spawnen den Server oft mit beliebigem cwd.
+dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 if (!OPENROUTER_API_KEY) {
-  console.error("❌ OPENROUTER_API_KEY nicht in .env gefunden!");
+  console.error("❌ OPENROUTER_API_KEY nicht gefunden (weder .env noch Umgebung)!");
   process.exit(1);
 }
 
-const MODELS = {
-  OPUS: "anthropic/claude-opus-4.8",
-  GPT5: "openai/gpt-5.5",
-} as const;
+const VERSION = "0.7.0";
 
-// Dein Standard System-Prompt
+// Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
+const DEFAULT_MODELS = ["anthropic/claude-opus-4.8", "openai/gpt-5.5"];
+const MODELS =
+  process.env.MODELS?.split(",")
+    .map((m) => m.trim())
+    .filter(Boolean) ?? DEFAULT_MODELS;
+const SYNTHESIS_MODEL = process.env.SYNTHESIS_MODEL ?? "anthropic/claude-haiku-4.5";
+const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 6000);
+const DEFAULT_TEMPERATURE = floatFromEnv("TEMPERATURE", 0.7);
+const REQUEST_TIMEOUT_MS = intFromEnv("REQUEST_TIMEOUT_MS", 120_000);
+
+function intFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    console.error(`⚠️ Ungültiger Wert für ${name} ("${raw}"), verwende ${fallback}.`);
+    return fallback;
+  }
+  return parsed;
+}
+
+function floatFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = parseFloat(raw);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    console.error(`⚠️ Ungültiger Wert für ${name} ("${raw}"), verwende ${fallback}.`);
+    return fallback;
+  }
+  return parsed;
+}
+
 const DEFAULT_SYSTEM_PROMPT = `Du antwortest strukturiert und prägnant in 6-8 Absätzen à 5-7 Sätze mit folgender Struktur:
 - Analyse des Kernproblems/der Fragestellung
 - Kontext und Hintergrund
@@ -35,92 +62,70 @@ const DEFAULT_SYSTEM_PROMPT = `Du antwortest strukturiert und prägnant in 6-8 A
 
 Antworte prägnant, nutze Fachbegriffe korrekt, und erkenne komplexe Themen an.`;
 
-interface DualModelResponse {
-  opus_response: string;
-  gpt5_response: string;
-  metadata: {
-    timestamp: string;
-    models_used: typeof MODELS;
-    system_prompt_used: string;
-  };
+interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
 }
 
-interface OpenRouterMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
-interface OpenRouterRequest {
+interface ModelResult {
   model: string;
-  messages: OpenRouterMessage[];
-  temperature?: number;
-  max_tokens?: number;
+  content: string;
+  usage?: TokenUsage;
 }
 
 interface OpenRouterResponse {
   id: string;
   choices: Array<{
-    message: {
-      content: string;
-      role: string;
-    };
+    message: { content: string; role: string };
     finish_reason: string;
   }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
+  usage?: TokenUsage;
+}
+
+interface QueryOptions {
+  maxTokens: number;
+  temperature: number;
 }
 
 async function queryModel(
   model: string,
   prompt: string,
-  systemPrompt: string = DEFAULT_SYSTEM_PROMPT
-): Promise<string> {
-  const messages: OpenRouterMessage[] = [];
-  messages.push({ role: "system", content: systemPrompt });
-  messages.push({ role: "user", content: prompt });
+  systemPrompt: string,
+  options: QueryOptions
+): Promise<ModelResult> {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://github.com/Firnschnee/dual-model-mcp",
+      "X-Title": "Dual Model MCP Server",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+      temperature: options.temperature,
+      max_tokens: options.maxTokens,
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
 
-  const requestBody: OpenRouterRequest = {
-    model,
-    messages,
-    temperature: 0.7,
-    max_tokens: 6000,
-  };
-
-  try {
-    const response = await axios.post<OpenRouterResponse>(
-      "https://openrouter.ai/api/v1/chat/completions",
-      requestBody,
-      {
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://github.com/maxs-mcp-server",
-          "X-Title": "Dual Model MCP Server",
-        },
-        timeout: 60000,
-      }
-    );
-
-    const content = response.data.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error(`Keine Response von ${model}`);
-    }
-
-    return content;
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError;
-      const status = axiosError.response?.status;
-      const data = axiosError.response?.data;
-
-      console.error(`❌ OpenRouter API Error für ${model}:`, { status, data });
-      throw new Error(`OpenRouter API Fehler (${status}): ${JSON.stringify(data)}`);
-    }
-    throw error;
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`OpenRouter API Fehler (${response.status}) für ${model}: ${body.slice(0, 500)}`);
   }
+
+  const data = (await response.json()) as OpenRouterResponse;
+  const content = data.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error(`Keine Response von ${model}`);
+  }
+
+  return { model, content, usage: data.usage };
 }
 
 function errorMessage(reason: unknown): string {
@@ -128,151 +133,176 @@ function errorMessage(reason: unknown): string {
   return String(reason);
 }
 
-async function queryBothModels(
-  prompt: string,
-  customSystemPrompt?: string
-): Promise<DualModelResponse> {
-  const systemPrompt = customSystemPrompt || DEFAULT_SYSTEM_PROMPT;
-
-  console.error(`🚀 Starte parallele Queries für beide Modelle...`);
-
-  const [opusResult, gpt5Result] = await Promise.allSettled([
-    queryModel(MODELS.OPUS, prompt, systemPrompt),
-    queryModel(MODELS.GPT5, prompt, systemPrompt),
-  ]);
-
-  // Ein gescheitertes Modell darf das andere nicht mitreißen.
-  if (opusResult.status === "rejected" && gpt5Result.status === "rejected") {
-    throw new Error(
-      `Beide Modelle sind gescheitert.\n` +
-        `Opus 4.8: ${errorMessage(opusResult.reason)}\n` +
-        `GPT-5.5: ${errorMessage(gpt5Result.reason)}`
-    );
-  }
-
-  const opusResponse =
-    opusResult.status === "fulfilled"
-      ? opusResult.value
-      : `❌ Opus 4.8 nicht verfügbar: ${errorMessage(opusResult.reason)}`;
-  const gpt5Response =
-    gpt5Result.status === "fulfilled"
-      ? gpt5Result.value
-      : `❌ GPT-5.5 nicht verfügbar: ${errorMessage(gpt5Result.reason)}`;
-
-  if (opusResult.status === "fulfilled" && gpt5Result.status === "fulfilled") {
-    console.error(`✅ Beide Modelle haben geantwortet!`);
-  } else {
-    console.error(`⚠️ Nur ein Modell hat geantwortet, liefere Teilergebnis.`);
-  }
-
-  return {
-    opus_response: opusResponse,
-    gpt5_response: gpt5Response,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      models_used: MODELS,
-      system_prompt_used: systemPrompt.slice(0, 100) + "...",
-    },
-  };
+function formatUsage(usage?: TokenUsage): string {
+  if (!usage) return "Usage unbekannt";
+  return `${usage.prompt_tokens} in / ${usage.completion_tokens} out (${usage.total_tokens} gesamt)`;
 }
 
-const server = new Server(
+const SYNTHESIS_SYSTEM_PROMPT = `Du erhältst mehrere Antworten verschiedener KI-Modelle auf dieselbe Frage.
+Vergleiche sie knapp und präzise:
+- Konvergenzen: Wo stimmen die Antworten inhaltlich überein?
+- Widersprüche: Wo widersprechen sie sich konkret?
+- Unikate: Welche relevanten Punkte nennt nur eine der Antworten?
+- Einschätzung: Welche Antwort ist wo stärker, und warum?
+
+Keine Zusammenfassung der Einzelantworten, nur der Vergleich.`;
+
+async function synthesize(
+  prompt: string,
+  results: ModelResult[],
+  options: QueryOptions
+): Promise<ModelResult> {
+  const answers = results
+    .map((r) => `### Antwort von ${r.model}\n\n${r.content}`)
+    .join("\n\n");
+  const synthesisPrompt = `Ursprüngliche Frage:\n${prompt}\n\n${answers}`;
+  return queryModel(SYNTHESIS_MODEL, synthesisPrompt, SYNTHESIS_SYSTEM_PROMPT, {
+    maxTokens: Math.min(options.maxTokens, 2000),
+    temperature: 0.3,
+  });
+}
+
+const server = new McpServer({
+  name: "dual-model-mcp-server",
+  version: VERSION,
+});
+
+server.registerTool(
+  "query_dual_models",
   {
-    name: "dual-model-mcp-server",
-    version: "1.0.0",
-  },
-  {
-    capabilities: {
-      tools: {},
+    title: "Multi-Modell-Anfrage",
+    description:
+      `Schickt eine Prompt parallel an mehrere Modelle via OpenRouter (Standard: ${MODELS.join(", ")}). ` +
+      "Liefert alle Antworten nebeneinander, optional mit Synthese (Konvergenzen, Widersprüche, Unikate). " +
+      "Standard-System-Prompt: strukturierte Antwort in 6-8 Absätzen.",
+    inputSchema: {
+      prompt: z.string().describe("Die Prompt für alle Modelle"),
+      system_prompt: z
+        .string()
+        .optional()
+        .describe("Optional: Custom System-Prompt. Falls leer: Standard-Prompt (strukturiert, 6-8 Absätze)."),
+      models: z
+        .array(z.string())
+        .min(1)
+        .optional()
+        .describe(`Optional: OpenRouter-Modell-IDs für diesen Aufruf. Standard: ${MODELS.join(", ")}`),
+      max_tokens: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(`Optional: max_tokens pro Modell. Standard: ${DEFAULT_MAX_TOKENS}`),
+      temperature: z
+        .number()
+        .min(0)
+        .max(2)
+        .optional()
+        .describe(`Optional: Temperature. Standard: ${DEFAULT_TEMPERATURE}`),
+      synthesize: z
+        .boolean()
+        .optional()
+        .describe("Optional: Zusätzlicher Vergleichsschritt über alle Antworten (Konvergenzen, Widersprüche, Unikate)."),
     },
-  }
-);
-
-const DUAL_QUERY_TOOL: Tool = {
-  name: "query_dual_models",
-  description:
-    "Schickt eine Prompt gleichzeitig an Claude Opus 4.8 und GPT-5.5. Standard: strukturierte Antworten in 6-8 Absätzen (Kernanalyse, Kontext, Evidenz, Argumentation, Gegenargumente, Reflexion, Fazit).",
-  inputSchema: {
-    type: "object",
-    properties: {
-      prompt: {
-        type: "string",
-        description: "Die Prompt für beide Modelle",
-      },
-      system_prompt: {
-        type: "string",
-        description: "Optional: Custom System-Prompt. Falls leer: Standard-Prompt (strukturiert, prägnant, 6-8 Absätze).",
-      },
-    },
-    required: ["prompt"],
   },
-};
+  async (args) => {
+    const models = args.models?.length ? args.models : MODELS;
+    const systemPrompt = args.system_prompt || DEFAULT_SYSTEM_PROMPT;
+    const options: QueryOptions = {
+      maxTokens: args.max_tokens ?? DEFAULT_MAX_TOKENS,
+      temperature: args.temperature ?? DEFAULT_TEMPERATURE,
+    };
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [DUAL_QUERY_TOOL],
-}));
+    console.error(`🚀 Starte parallele Queries: ${models.join(", ")}`);
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
+    const settled = await Promise.allSettled(
+      models.map((model) => queryModel(model, args.prompt, systemPrompt, options))
+    );
 
-  if (name !== "query_dual_models") {
-    throw new Error(`Unknown tool: ${name}`);
-  }
+    const succeeded: ModelResult[] = [];
+    const sections: string[] = [];
 
-  if (!args || typeof args.prompt !== "string") {
-    throw new Error("'prompt' ist required und muss ein String sein");
-  }
+    settled.forEach((result, i) => {
+      const model = models[i];
+      if (result.status === "fulfilled") {
+        succeeded.push(result.value);
+        sections.push(
+          `## ${model}\n\n${result.value.content}\n\n*Tokens: ${formatUsage(result.value.usage)}*`
+        );
+      } else {
+        sections.push(`## ${model}\n\n❌ Nicht verfügbar: ${errorMessage(result.reason)}`);
+      }
+    });
 
-  const prompt = args.prompt as string;
-  const systemPrompt = (args.system_prompt as string | undefined) || undefined;
+    // Alle gescheitert: Fehler als Tool-Ergebnis zurückgeben, nicht werfen.
+    // So sieht das aufrufende Modell die Details und kann reagieren.
+    if (succeeded.length === 0) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text" as const,
+            text: `Alle Modelle sind gescheitert.\n\n${sections.join("\n\n")}`,
+          },
+        ],
+      };
+    }
 
-  try {
-    const result = await queryBothModels(prompt, systemPrompt);
+    if (args.synthesize && succeeded.length >= 2) {
+      try {
+        const synthesis = await synthesize(args.prompt, succeeded, options);
+        sections.push(
+          `## Synthese (${synthesis.model})\n\n${synthesis.content}\n\n*Tokens: ${formatUsage(synthesis.usage)}*`
+        );
+        succeeded.push(synthesis);
+      } catch (error) {
+        sections.push(`## Synthese\n\n❌ Gescheitert: ${errorMessage(error)}`);
+      }
+    } else if (args.synthesize) {
+      sections.push(`## Synthese\n\nÜbersprungen: nur eine Antwort vorhanden, nichts zu vergleichen.`);
+    }
 
-    const formattedText = `
-🤖 **CLAUDE OPUS 4.8**
-${"=".repeat(50)}
-${result.opus_response}
+    const totalTokens = succeeded.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
+    const promptInfo =
+      systemPrompt.length > 100 ? `${systemPrompt.slice(0, 100)}...` : systemPrompt;
 
-🤖 **OPENAI GPT-5.5**
-${"=".repeat(50)}
-${result.gpt5_response}
+    const metadata = [
+      `**Metadata**`,
+      `Timestamp: ${new Date().toISOString()}`,
+      `Modelle: ${models.join(", ")}`,
+      `Tokens gesamt: ${totalTokens}`,
+      `System-Prompt: ${promptInfo}`,
+    ].join("\n");
 
-📊 **Metadata**
-Timestamp: ${result.metadata.timestamp}
-Modelle: ${Object.values(result.metadata.models_used).join(", ")}
-System-Prompt: ${result.metadata.system_prompt_used}
-`;
+    if (succeeded.length === settled.length) {
+      console.error(`✅ Alle ${models.length} Modelle haben geantwortet.`);
+    } else {
+      console.error(
+        `⚠️ ${succeeded.length}/${models.length} Modelle haben geantwortet, liefere Teilergebnis.`
+      );
+    }
 
     return {
       content: [
         {
-          type: "text",
-          text: formattedText,
+          type: "text" as const,
+          text: `${sections.join("\n\n---\n\n")}\n\n---\n\n${metadata}`,
         },
       ],
     };
-  } catch (error) {
-    console.error("❌ Error beim Querying:", error);
-    throw error;
   }
-});
+);
 
 async function main() {
-  console.error("🎯 Dual Model MCP Server startet...");
+  console.error(`🎯 Dual Model MCP Server ${VERSION} startet...`);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
   console.error("✅ Server läuft! Warte auf MCP-Anfragen via STDIO...");
-  console.error(`📡 Modelle: ${MODELS.OPUS} & ${MODELS.GPT5}`);
-  console.error("📝 Standard System-Prompt: Strukturiert, 6-8 Absätze, prägnant");
+  console.error(`📡 Modelle: ${MODELS.join(", ")} | Synthese: ${SYNTHESIS_MODEL}`);
 }
 
 main().catch((error) => {
   console.error("💥 Fatal error:", error);
   process.exit(1);
 });
-
-
-

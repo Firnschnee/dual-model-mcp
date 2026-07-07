@@ -1,27 +1,32 @@
 {
   "name": "dual-model-mcp-server",
-  "version": "1.0.0",
-  "description": "MCP Server that queries Claude Opus 4.8 and GPT-5.5 simultaneously via OpenRouter",
+  "version": "0.7.0",
+  "description": "MCP server that queries multiple LLMs in parallel via OpenRouter and returns side-by-side responses, optionally with a synthesis step",
   "type": "module",
   "main": "build/index.js",
+  "bin": {
+    "dual-model-mcp": "build/index.js"
+  },
   "scripts": {
-    "build": "tsc && node -e \"console.log('✅ Build successful!')\"",
+    "build": "tsc",
     "dev": "tsc --watch",
     "start": "node build/index.js",
+    "test": "node test-smoke.mjs",
     "prepare": "npm run build"
   },
-  "keywords": ["mcp", "openrouter", "claude", "gpt"],
+  "keywords": ["mcp", "openrouter", "claude", "gpt", "multi-model"],
   "author": "Firnschnee",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
-    "axios": "^1.7.9",
-    "dotenv": "^16.4.5"
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
   }
 }
-
-
