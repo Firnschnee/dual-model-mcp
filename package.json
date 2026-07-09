@@ -1,6 +1,6 @@
 {
   "name": "dual-model-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server that queries multiple LLMs in parallel via OpenRouter and returns side-by-side responses, optionally with a synthesis step",
   "type": "module",
   "main": "build/index.js",
@@ -15,7 +15,13 @@
     "test": "node test-smoke.mjs",
     "prepare": "npm run build"
   },
-  "keywords": ["mcp", "openrouter", "claude", "gpt", "multi-model"],
+  "keywords": [
+    "mcp",
+    "openrouter",
+    "claude",
+    "gpt",
+    "multi-model"
+  ],
   "author": "Firnschnee",
   "license": "MIT",
   "engines": {
