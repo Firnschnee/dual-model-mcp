@@ -30,12 +30,14 @@ function jsonError(res: http.ServerResponse, status: number, message: string): v
   );
 }
 
+class BodyTooLargeError extends Error {}
+
 async function readBody(req: http.IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 4 * 1024 * 1024) throw new Error("Body zu groß");
+    if (size > 4 * 1024 * 1024) throw new BodyTooLargeError();
     chunks.push(chunk as Buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
@@ -60,8 +62,12 @@ const httpServer = http.createServer(async (req, res) => {
   let body: unknown;
   try {
     body = await readBody(req);
-  } catch {
-    jsonError(res, 400, "Ungültiger JSON-Body.");
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      jsonError(res, 413, "Body zu groß (max. 4 MB).");
+    } else {
+      jsonError(res, 400, "Ungültiger JSON-Body.");
+    }
     return;
   }
 

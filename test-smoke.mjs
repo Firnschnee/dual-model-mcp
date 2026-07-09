@@ -34,4 +34,9 @@ console.log("\n--- Tool-Antwort ---\n");
 console.log(result.content?.[0]?.text ?? JSON.stringify(result, null, 2));
 
 await client.close();
+
+if (result.isError) {
+  console.error("\n❌ Smoke-Test fehlgeschlagen: Tool meldet isError.");
+  process.exit(1);
+}
 process.exit(0);

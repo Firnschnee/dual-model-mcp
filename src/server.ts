@@ -17,13 +17,15 @@ export const VERSION = "1.0.0";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
 const DEFAULT_MODELS = ["anthropic/claude-opus-4.8", "openai/gpt-5.5"];
-export const MODELS =
-  process.env.MODELS?.split(",")
-    .map((m) => m.trim())
-    .filter(Boolean) ?? DEFAULT_MODELS;
+// .length statt ??: MODELS="" ergibt nach split/filter ein leeres Array,
+// das nicht nullish ist und sonst die Defaults verdrängen würde.
+const modelsFromEnv = process.env.MODELS?.split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+export const MODELS = modelsFromEnv?.length ? modelsFromEnv : DEFAULT_MODELS;
 export const SYNTHESIS_MODEL = process.env.SYNTHESIS_MODEL ?? "anthropic/claude-haiku-4.5";
 const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 6000);
-const DEFAULT_TEMPERATURE = floatFromEnv("TEMPERATURE", 0.7);
+const DEFAULT_TEMPERATURE = floatFromEnv("TEMPERATURE", 0.7, 2);
 const REQUEST_TIMEOUT_MS = intFromEnv("REQUEST_TIMEOUT_MS", 120_000);
 
 export function intFromEnv(name: string, fallback: number): number {
@@ -37,11 +39,11 @@ export function intFromEnv(name: string, fallback: number): number {
   return parsed;
 }
 
-function floatFromEnv(name: string, fallback: number): number {
+function floatFromEnv(name: string, fallback: number, max = Infinity): number {
   const raw = process.env[name];
   if (!raw) return fallback;
   const parsed = parseFloat(raw);
-  if (Number.isNaN(parsed) || parsed < 0) {
+  if (Number.isNaN(parsed) || parsed < 0 || parsed > max) {
     console.error(`⚠️ Ungültiger Wert für ${name} ("${raw}"), verwende ${fallback}.`);
     return fallback;
   }
@@ -73,10 +75,13 @@ interface ModelResult {
 
 interface OpenRouterResponse {
   id: string;
-  choices: Array<{
+  choices?: Array<{
     message: { content: string; role: string };
     finish_reason: string;
   }>;
+  // OpenRouter liefert manche Fehler (Moderation, Provider-Ausfall)
+  // als error-Objekt im Body mit HTTP-Status 200.
+  error?: { code?: number; message?: string };
   usage?: TokenUsage;
 }
 
@@ -117,7 +122,12 @@ async function queryModel(
   }
 
   const data = (await response.json()) as OpenRouterResponse;
-  const content = data.choices[0]?.message?.content;
+  if (data.error) {
+    throw new Error(
+      `OpenRouter Fehler für ${model}: ${data.error.message ?? JSON.stringify(data.error)}`
+    );
+  }
+  const content = data.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error(`Keine Response von ${model}`);
   }
@@ -245,6 +255,10 @@ export function createServer(): McpServer {
         };
       }
 
+      // Vor dem Synthese-Push festhalten: das Log unten zählt Modelle,
+      // nicht Modelle plus Synthese.
+      const modelSuccessCount = succeeded.length;
+
       if (args.synthesize && succeeded.length >= 2) {
         try {
           const synthesis = await synthesize(args.prompt, succeeded, options);
@@ -271,11 +285,11 @@ export function createServer(): McpServer {
         `System-Prompt: ${promptInfo}`,
       ].join("\n");
 
-      if (succeeded.length === settled.length) {
+      if (modelSuccessCount === settled.length) {
         console.error(`✅ Alle ${models.length} Modelle haben geantwortet.`);
       } else {
         console.error(
-          `⚠️ ${succeeded.length}/${models.length} Modelle haben geantwortet, liefere Teilergebnis.`
+          `⚠️ ${modelSuccessCount}/${models.length} Modelle haben geantwortet, liefere Teilergebnis.`
         );
       }
 
