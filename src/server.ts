@@ -16,7 +16,7 @@ if (!OPENROUTER_API_KEY) {
 export const VERSION = "1.0.1";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
-const DEFAULT_MODELS = ["anthropic/claude-opus-4.8", "openai/gpt-5.5"];
+const DEFAULT_MODELS = ["anthropic/claude-opus-5", "openai/gpt-5.6-sol"];
 // .length statt ??: MODELS="" ergibt nach split/filter ein leeres Array,
 // das nicht nullish ist und sonst die Defaults verdrängen würde.
 const modelsFromEnv = process.env.MODELS?.split(",")

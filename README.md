@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-An MCP server that queries multiple LLMs (default: Claude Opus 4.8 and OpenAI GPT-5.5) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
+An MCP server that queries multiple LLMs (default: Claude Opus 5 and OpenAI GPT-5.6 Sol) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
 
 Runs locally over stdio (Claude Code, Claude Desktop, Cherry Studio) **and** remotely over Streamable HTTP – so you can use it from claude.ai on the web and in the mobile apps as a [custom connector](#with-claudeai-web--mobile).
 
@@ -154,7 +154,7 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENROUTER_API_KEY` | (required) | Your OpenRouter API key |
-| `MODELS` | `anthropic/claude-opus-4.8,openai/gpt-5.5` | Comma-separated model IDs to query in parallel |
+| `MODELS` | `anthropic/claude-opus-5,openai/gpt-5.6-sol` | Comma-separated model IDs to query in parallel |
 | `SYNTHESIS_MODEL` | `anthropic/claude-haiku-4.5` | Model for the synthesis step |
 | `MAX_TOKENS` | `6000` | Max output tokens per model |
 | `TEMPERATURE` | `0.7` | Sampling temperature |
