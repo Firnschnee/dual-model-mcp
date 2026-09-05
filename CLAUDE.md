@@ -16,11 +16,11 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   3.8 Flash). Native `fetch`, kein HTTP-Client-Dependency. Node 18+.
 - Positionierung seit 2026-09-05: Eskalationsstufe, nicht Alltag. Defaults
   Fable 5.1 + GPT-6 Astra, `reasoning.effort=high` (OpenRouter-einheitlicher
-  Parameter, pro Anbieter uebersetzt), `MAX_TOKENS` 24000, Timeout 600 s.
+  Parameter, pro Anbieter uebersetzt), `MAX_TOKENS` 32000, Timeout 600 s.
   Begruendung: der Aufrufer ist im Alltag Opus 5; ein zweites
   Mittelklassemodell bringt keine Diversitaet, die den Preis wert waere.
 - Zweites Tool `ask_gpt` (seit 1.2.0): ein Modell (GPT-5.6 Sol, effort xhigh,
-  16000 Tokens), keine Synthese, gleiche Ausgabe. Beide Tools teilen sich
+  32000 Tokens), keine Synthese, gleiche Ausgabe. Beide Tools teilen sich
   `runQuery()`. Eigenes Tool statt Parameter, damit der Aufrufer (claude.ai
   waehlt nach Beschreibung) fuer die Alltagsfrage nicht Fable+Astra zieht.
   Slash-Command `/gpt` (`~/.claude/commands/gpt.md`).
@@ -71,6 +71,10 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 - Erfolgs-Log darf die Synthese-Antwort nicht als eigenes Modell mitzaehlen.
 - Smoke-Test muss `isError` pruefen, sonst ist er bei komplett gescheiterten
   Modell-Calls trotzdem gruen.
+- Reasoning-Tokens zaehlen gegen `max_tokens`. Leerer `content` mit
+  `finish_reason: length` heisst "Budget komplett ins Denken gegangen", nicht
+  "Provider-Ausfall" (Sol xhigh, 16000 Tokens, Architekturfrage, 2026-09-05).
+  `finish_reason` auswerten und Abschneiden im Ergebnis markieren.
 
 ## Offen
 

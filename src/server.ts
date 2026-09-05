@@ -13,7 +13,7 @@ if (!OPENROUTER_API_KEY) {
   process.exit(1);
 }
 
-export const VERSION = "1.2.0";
+export const VERSION = "1.2.1";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
 // Eskalationsstufe, nicht Alltag: die jeweils stärksten Modelle beider Häuser.
@@ -29,7 +29,7 @@ export const SYNTHESIS_MODEL = process.env.SYNTHESIS_MODEL ?? "google/gemini-3.8
 // Reasoning-Tokens zählen bei allen drei Anbietern gegen max_tokens; bei
 // Anthropic leitet OpenRouter das Denkbudget als Anteil davon ab. 6000 wäre
 // mit effort=high fast nur Denken und kaum Antwort.
-const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 24_000);
+const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 32_000);
 // Temperature nur senden, wenn explizit gesetzt: die Default-Modelle
 // (Fable, GPT-6) unterstützen den Parameter nicht, OpenRouter verwirft ihn
 // dann stillschweigend. Kein Default vortäuschen, der nicht wirkt.
@@ -45,7 +45,10 @@ const DEFAULT_EFFORT = effortFromEnv("REASONING_EFFORT", "high");
 // punktgleich, zwei Drittel der Kosten).
 export const ASK_GPT_MODEL = process.env.ASK_GPT_MODEL?.trim() || "openai/gpt-5.6-sol";
 const ASK_GPT_EFFORT = effortFromEnv("ASK_GPT_EFFORT", "xhigh");
-const ASK_GPT_MAX_TOKENS = intFromEnv("ASK_GPT_MAX_TOKENS", 16_000);
+// Sol auf xhigh hat bei einer Architekturfrage 16000 Tokens komplett ins
+// Denken gesteckt und keine Antwort geliefert. 32000 lässt Luft; bei 10 USD
+// pro Million Output ist das Worst Case 0,32 USD pro Aufruf.
+const ASK_GPT_MAX_TOKENS = intFromEnv("ASK_GPT_MAX_TOKENS", 32_000);
 
 function effortFromEnv(name: string, fallback: Effort): Effort {
   const raw = process.env[name]?.trim();
@@ -92,12 +95,15 @@ interface TokenUsage {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  completion_tokens_details?: { reasoning_tokens?: number };
 }
 
 interface ModelResult {
   model: string;
   content: string;
   usage?: TokenUsage;
+  // finish_reason "length": Antwort wurde von max_tokens abgeschnitten.
+  truncated?: boolean;
 }
 
 interface OpenRouterResponse {
@@ -158,12 +164,25 @@ async function queryModel(
       `OpenRouter Fehler für ${model}: ${data.error.message ?? JSON.stringify(data.error)}`
     );
   }
-  const content = data.choices?.[0]?.message?.content;
+  const choice = data.choices?.[0];
+  const content = choice?.message?.content;
+  const truncated = choice?.finish_reason === "length";
   if (!content) {
-    throw new Error(`Keine Response von ${model}`);
+    // Häufigster Fall bei Reasoning-Modellen: das gesamte max_tokens-Budget
+    // ging ins Denken, für die Antwort blieb nichts. Als solchen benennen,
+    // sonst sieht es wie ein Provider-Ausfall aus.
+    const reasoning = data.usage?.completion_tokens_details?.reasoning_tokens;
+    if (truncated) {
+      throw new Error(
+        `${model}: Budget aufgebraucht, bevor eine Antwort begann ` +
+          `(max_tokens=${options.maxTokens}, davon Reasoning: ${reasoning ?? "unbekannt"}). ` +
+          `max_tokens erhöhen oder effort senken.`
+      );
+    }
+    throw new Error(`Keine Response von ${model} (finish_reason: ${choice?.finish_reason ?? "unbekannt"})`);
   }
 
-  return { model, content, usage: data.usage };
+  return { model, content, usage: data.usage, truncated };
 }
 
 function errorMessage(reason: unknown): string {
@@ -173,7 +192,20 @@ function errorMessage(reason: unknown): string {
 
 function formatUsage(usage?: TokenUsage): string {
   if (!usage) return "Usage unbekannt";
-  return `${usage.prompt_tokens} in / ${usage.completion_tokens} out (${usage.total_tokens} gesamt)`;
+  const reasoning = usage.completion_tokens_details?.reasoning_tokens;
+  const out =
+    reasoning !== undefined
+      ? `${usage.completion_tokens} out (davon ${reasoning} Reasoning)`
+      : `${usage.completion_tokens} out`;
+  return `${usage.prompt_tokens} in / ${out} (${usage.total_tokens} gesamt)`;
+}
+
+function formatSection(result: ModelResult, maxTokens: number): string {
+  const warning = result.truncated
+    ? `\n\n⚠️ Abgeschnitten: max_tokens=${maxTokens} erreicht, die Antwort ist unvollständig. ` +
+      `max_tokens erhöhen oder effort senken.`
+    : "";
+  return `## ${result.model}\n\n${result.content}${warning}\n\n*Tokens: ${formatUsage(result.usage)}*`;
 }
 
 const SYNTHESIS_SYSTEM_PROMPT = `Du erhältst mehrere Antworten verschiedener KI-Modelle auf dieselbe Frage.
@@ -346,9 +378,7 @@ async function runQuery({
     const model = models[i];
     if (result.status === "fulfilled") {
       succeeded.push(result.value);
-      sections.push(
-        `## ${model}\n\n${result.value.content}\n\n*Tokens: ${formatUsage(result.value.usage)}*`
-      );
+      sections.push(formatSection(result.value, options.maxTokens));
     } else {
       sections.push(`## ${model}\n\n❌ Nicht verfügbar: ${errorMessage(result.reason)}`);
     }

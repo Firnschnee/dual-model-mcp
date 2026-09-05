@@ -143,7 +143,7 @@ claude.ai talks to remote MCP servers over Streamable HTTP. The HTTP entry point
 | `prompt` | string | (required) | The prompt sent to all models |
 | `system_prompt` | string | structured 6-8 paragraph prompt | Custom system prompt |
 | `models` | string[] | from `.env` / built-in | OpenRouter model IDs for this call only |
-| `max_tokens` | number | 24000 | Max output tokens per model (reasoning tokens count against this) |
+| `max_tokens` | number | 32000 | Max output tokens per model (reasoning tokens count against this) |
 | `effort` | `none`…`max` | `high` | Reasoning effort, passed through OpenRouter's unified `reasoning` parameter |
 | `temperature` | number | unset | Sampling temperature (0-2). Ignored by OpenAI and Anthropic reasoning models |
 | `synthesize` | boolean | false | Adds a comparison step: convergences, contradictions, unique points |
@@ -161,9 +161,9 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | `REASONING_EFFORT` | `high` | Reasoning effort for all models (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) |
 | `ASK_GPT_MODEL` | `openai/gpt-5.6-sol` | Model behind the `ask_gpt` tool |
 | `ASK_GPT_EFFORT` | `xhigh` | Reasoning effort for `ask_gpt` |
-| `ASK_GPT_MAX_TOKENS` | `16000` | Max output tokens for `ask_gpt` |
+| `ASK_GPT_MAX_TOKENS` | `32000` | Max output tokens for `ask_gpt` |
 | `SYNTHESIS_MODEL` | `google/gemini-3.8-flash` | Model for the synthesis step |
-| `MAX_TOKENS` | `24000` | Max output tokens per model, including reasoning tokens |
+| `MAX_TOKENS` | `32000` | Max output tokens per model, including reasoning tokens |
 | `TEMPERATURE` | unset | Sampling temperature; only sent when set |
 | `REQUEST_TIMEOUT_MS` | `600000` | Per-request timeout |
 | `MCP_PATH_SECRET` | (required in HTTP mode) | Secret URL path segment, min. 16 chars |
@@ -184,7 +184,7 @@ No rebuild needed after changing `.env`; the MCP client restarts the server on d
 
 ## Cost & Token Usage
 
-This is an escalation tool, not a daily driver: the default models are the most expensive tier of both vendors (roughly $10 in / $50 out per million tokens each), and `max_tokens` defaults to 24000 per model so that `effort: high` has room to think and still answer. A single hard question can cost a dollar or two. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
+This is an escalation tool, not a daily driver: the default models are the most expensive tier of both vendors (roughly $10 in / $50 out per million tokens each), and `max_tokens` defaults to 32000 per model so that `effort: high` has room to think and still answer. Reasoning tokens count against `max_tokens` on every provider; if the budget runs out before the answer starts, the tool says so instead of reporting an empty response, and a truncated answer is flagged as such. A single hard question can cost a dollar or two. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
 
 ## Testing
 
