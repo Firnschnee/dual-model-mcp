@@ -34,12 +34,25 @@ const result = await client.callTool({
   },
 });
 
-console.log("\n--- Tool-Antwort ---\n");
+console.log("\n--- Tool-Antwort query_dual_models ---\n");
 console.log(result.content?.[0]?.text ?? JSON.stringify(result, null, 2));
+
+const gpt = await client.callTool({
+  name: "ask_gpt",
+  arguments: {
+    prompt: "Was ist die Hauptstadt von Italien?",
+    system_prompt: "Antworte in genau einem kurzen Satz. Maximal 12 Woerter.",
+    effort: "low",
+    max_tokens: 2000,
+  },
+});
+
+console.log("\n--- Tool-Antwort ask_gpt ---\n");
+console.log(gpt.content?.[0]?.text ?? JSON.stringify(gpt, null, 2));
 
 await client.close();
 
-if (result.isError) {
+if (result.isError || gpt.isError) {
   console.error("\n❌ Smoke-Test fehlgeschlagen: Tool meldet isError.");
   process.exit(1);
 }

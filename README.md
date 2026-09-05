@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-An MCP server that queries multiple LLMs (default: Claude Fable 5.1 and OpenAI GPT-6 Astra, reasoning effort `high`) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
+An MCP server that queries multiple LLMs (default: Claude Fable 5.1 and OpenAI GPT-6 Astra, reasoning effort `high`) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them. A second tool, `ask_gpt`, asks a single cheap model (default GPT-5.6 Sol) for an everyday second opinion.
 
 Runs locally over stdio (Claude Code, Claude Desktop, Cherry Studio) **and** remotely over Streamable HTTP – so you can use it from claude.ai on the web and in the mobile apps as a [custom connector](#with-claudeai-web--mobile).
 
@@ -148,6 +148,8 @@ claude.ai talks to remote MCP servers over Streamable HTTP. The HTTP entry point
 | `temperature` | number | unset | Sampling temperature (0-2). Ignored by OpenAI and Anthropic reasoning models |
 | `synthesize` | boolean | false | Adds a comparison step: convergences, contradictions, unique points |
 
+`ask_gpt` is the everyday variant: one cheap model (default GPT-5.6 Sol at effort `xhigh`), no synthesis, same output format. It accepts `prompt`, `system_prompt`, `max_tokens` and `effort`. Keeping it as a separate tool means a caller that wants a quick second opinion does not accidentally trigger the expensive escalation tool.
+
 ## Configuration
 
 All settings live in `.env` (see [.env.example](.env.example)):
@@ -157,6 +159,9 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | `OPENROUTER_API_KEY` | (required) | Your OpenRouter API key |
 | `MODELS` | `anthropic/claude-fable-5.1,openai/gpt-6-astra` | Comma-separated model IDs to query in parallel |
 | `REASONING_EFFORT` | `high` | Reasoning effort for all models (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) |
+| `ASK_GPT_MODEL` | `openai/gpt-5.6-sol` | Model behind the `ask_gpt` tool |
+| `ASK_GPT_EFFORT` | `xhigh` | Reasoning effort for `ask_gpt` |
+| `ASK_GPT_MAX_TOKENS` | `16000` | Max output tokens for `ask_gpt` |
 | `SYNTHESIS_MODEL` | `google/gemini-3.8-flash` | Model for the synthesis step |
 | `MAX_TOKENS` | `24000` | Max output tokens per model, including reasoning tokens |
 | `TEMPERATURE` | unset | Sampling temperature; only sent when set |

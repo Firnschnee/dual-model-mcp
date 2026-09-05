@@ -7,7 +7,7 @@
 
 import http from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createServer, intFromEnv, MODELS, SYNTHESIS_MODEL, VERSION } from "./server.js";
+import { ASK_GPT_MODEL, createServer, intFromEnv, MODELS, SYNTHESIS_MODEL, VERSION } from "./server.js";
 
 const SECRET = process.env.MCP_PATH_SECRET;
 if (!SECRET || SECRET.length < 16) {
@@ -93,6 +93,6 @@ const httpServer = http.createServer(async (req, res) => {
 
 httpServer.listen(PORT, HOST, () => {
   console.error(`🎯 Dual Model MCP Server ${VERSION} (HTTP) auf ${HOST}:${PORT}`);
-  console.error(`📡 Modelle: ${MODELS.join(", ")} | Synthese: ${SYNTHESIS_MODEL}`);
+  console.error(`📡 Modelle: ${MODELS.join(", ")} | ask_gpt: ${ASK_GPT_MODEL} | Synthese: ${SYNTHESIS_MODEL}`);
   console.error(`🔒 Pfad: /<MCP_PATH_SECRET>/mcp (Secret nicht geloggt)`);
 });

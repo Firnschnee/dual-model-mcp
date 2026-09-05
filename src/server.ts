@@ -13,7 +13,7 @@ if (!OPENROUTER_API_KEY) {
   process.exit(1);
 }
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
 // Eskalationsstufe, nicht Alltag: die jeweils stärksten Modelle beider Häuser.
@@ -39,6 +39,13 @@ const REQUEST_TIMEOUT_MS = intFromEnv("REQUEST_TIMEOUT_MS", 600_000);
 const EFFORT_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 type Effort = (typeof EFFORT_LEVELS)[number];
 const DEFAULT_EFFORT = effortFromEnv("REASONING_EFFORT", "high");
+
+// Alltagsvariante ask_gpt: ein günstiges Modell, hoher Effort, damit die
+// Zweitmeinung auf Augenhöhe mit Opus 5 medium liegt (AA-Index: Sol xhigh
+// punktgleich, zwei Drittel der Kosten).
+export const ASK_GPT_MODEL = process.env.ASK_GPT_MODEL?.trim() || "openai/gpt-5.6-sol";
+const ASK_GPT_EFFORT = effortFromEnv("ASK_GPT_EFFORT", "xhigh");
+const ASK_GPT_MAX_TOKENS = intFromEnv("ASK_GPT_MAX_TOKENS", 16_000);
 
 function effortFromEnv(name: string, fallback: Effort): Effort {
   const raw = process.env[name]?.trim();
@@ -246,99 +253,166 @@ export function createServer(): McpServer {
           .describe("Optional: Zusätzlicher Vergleichsschritt über alle Antworten (Konvergenzen, Widersprüche, Unikate)."),
       },
     },
-    async (args) => {
-      const models = args.models?.length ? args.models : MODELS;
-      const systemPrompt = args.system_prompt || DEFAULT_SYSTEM_PROMPT;
-      const options: QueryOptions = {
-        maxTokens: args.max_tokens ?? DEFAULT_MAX_TOKENS,
-        temperature: args.temperature ?? DEFAULT_TEMPERATURE,
-        effort: args.effort ?? DEFAULT_EFFORT,
-      };
+    async (args) =>
+      runQuery({
+        prompt: args.prompt,
+        systemPrompt: args.system_prompt || DEFAULT_SYSTEM_PROMPT,
+        models: args.models?.length ? args.models : MODELS,
+        options: {
+          maxTokens: args.max_tokens ?? DEFAULT_MAX_TOKENS,
+          temperature: args.temperature ?? DEFAULT_TEMPERATURE,
+          effort: args.effort ?? DEFAULT_EFFORT,
+        },
+        synthesizeAnswers: args.synthesize ?? false,
+      })
+  );
 
-      console.error(`🚀 Starte parallele Queries (effort=${options.effort}): ${models.join(", ")}`);
-
-      const settled = await Promise.allSettled(
-        models.map((model) => queryModel(model, args.prompt, systemPrompt, options))
-      );
-
-      const succeeded: ModelResult[] = [];
-      const sections: string[] = [];
-
-      settled.forEach((result, i) => {
-        const model = models[i];
-        if (result.status === "fulfilled") {
-          succeeded.push(result.value);
-          sections.push(
-            `## ${model}\n\n${result.value.content}\n\n*Tokens: ${formatUsage(result.value.usage)}*`
-          );
-        } else {
-          sections.push(`## ${model}\n\n❌ Nicht verfügbar: ${errorMessage(result.reason)}`);
-        }
-      });
-
-      // Alle gescheitert: Fehler als Tool-Ergebnis zurückgeben, nicht werfen.
-      // So sieht das aufrufende Modell die Details und kann reagieren.
-      if (succeeded.length === 0) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: `Alle Modelle sind gescheitert.\n\n${sections.join("\n\n")}`,
-            },
-          ],
-        };
-      }
-
-      // Vor dem Synthese-Push festhalten: das Log unten zählt Modelle,
-      // nicht Modelle plus Synthese.
-      const modelSuccessCount = succeeded.length;
-
-      if (args.synthesize && succeeded.length >= 2) {
-        try {
-          const synthesis = await synthesize(args.prompt, succeeded, options);
-          sections.push(
-            `## Synthese (${synthesis.model})\n\n${synthesis.content}\n\n*Tokens: ${formatUsage(synthesis.usage)}*`
-          );
-          succeeded.push(synthesis);
-        } catch (error) {
-          sections.push(`## Synthese\n\n❌ Gescheitert: ${errorMessage(error)}`);
-        }
-      } else if (args.synthesize) {
-        sections.push(`## Synthese\n\nÜbersprungen: nur eine Antwort vorhanden, nichts zu vergleichen.`);
-      }
-
-      const totalTokens = succeeded.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
-      const promptInfo =
-        systemPrompt.length > 100 ? `${systemPrompt.slice(0, 100)}...` : systemPrompt;
-
-      const metadata = [
-        `**Metadata**`,
-        `Timestamp: ${new Date().toISOString()}`,
-        `Modelle: ${models.join(", ")}`,
-        `Effort: ${options.effort}`,
-        `Tokens gesamt: ${totalTokens}`,
-        `System-Prompt: ${promptInfo}`,
-      ].join("\n");
-
-      if (modelSuccessCount === settled.length) {
-        console.error(`✅ Alle ${models.length} Modelle haben geantwortet.`);
-      } else {
-        console.error(
-          `⚠️ ${modelSuccessCount}/${models.length} Modelle haben geantwortet, liefere Teilergebnis.`
-        );
-      }
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `${sections.join("\n\n---\n\n")}\n\n---\n\n${metadata}`,
-          },
-        ],
-      };
-    }
+  // Alltagsvariante: ein Modell, feste Defaults, keine Synthese. Eigenes Tool
+  // statt Parameter-Kombination, damit der Aufrufer (vor allem in claude.ai,
+  // wo er Tools nach Beschreibung wählt) nicht versehentlich eskaliert.
+  server.registerTool(
+    "ask_gpt",
+    {
+      title: "Zweitmeinung von GPT",
+      description:
+        `Holt eine Zweitmeinung von ${ASK_GPT_MODEL} (Reasoning-Effort ${ASK_GPT_EFFORT}) via OpenRouter. ` +
+        "Günstige Alltagsvariante für eine andere Perspektive, keine Eskalation. " +
+        "Das Modell sieht nur den Prompt: Kontext, Code und bisherige Versuche mitgeben.",
+      inputSchema: {
+        prompt: z.string().describe("Die Frage samt allem Kontext, den das Modell braucht"),
+        system_prompt: z
+          .string()
+          .optional()
+          .describe("Optional: Custom System-Prompt. Falls leer: Standard-Prompt (strukturiert, 6-8 Absätze)."),
+        max_tokens: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe(`Optional: max_tokens. Standard: ${ASK_GPT_MAX_TOKENS}`),
+        effort: z
+          .enum(EFFORT_LEVELS)
+          .optional()
+          .describe(`Optional: Reasoning-Effort. Standard: ${ASK_GPT_EFFORT}`),
+      },
+    },
+    async (args) =>
+      runQuery({
+        prompt: args.prompt,
+        systemPrompt: args.system_prompt || DEFAULT_SYSTEM_PROMPT,
+        models: [ASK_GPT_MODEL],
+        options: {
+          maxTokens: args.max_tokens ?? ASK_GPT_MAX_TOKENS,
+          temperature: DEFAULT_TEMPERATURE,
+          effort: args.effort ?? ASK_GPT_EFFORT,
+        },
+        synthesizeAnswers: false,
+      })
   );
 
   return server;
+}
+
+interface RunParams {
+  prompt: string;
+  systemPrompt: string;
+  models: string[];
+  options: QueryOptions;
+  synthesizeAnswers: boolean;
+}
+
+type ToolResult = {
+  isError?: boolean;
+  content: Array<{ type: "text"; text: string }>;
+};
+
+async function runQuery({
+  prompt,
+  systemPrompt,
+  models,
+  options,
+  synthesizeAnswers,
+}: RunParams): Promise<ToolResult> {
+  console.error(`🚀 Starte parallele Queries (effort=${options.effort}): ${models.join(", ")}`);
+
+  const settled = await Promise.allSettled(
+    models.map((model) => queryModel(model, prompt, systemPrompt, options))
+  );
+
+  const succeeded: ModelResult[] = [];
+  const sections: string[] = [];
+
+  settled.forEach((result, i) => {
+    const model = models[i];
+    if (result.status === "fulfilled") {
+      succeeded.push(result.value);
+      sections.push(
+        `## ${model}\n\n${result.value.content}\n\n*Tokens: ${formatUsage(result.value.usage)}*`
+      );
+    } else {
+      sections.push(`## ${model}\n\n❌ Nicht verfügbar: ${errorMessage(result.reason)}`);
+    }
+  });
+
+  // Alle gescheitert: Fehler als Tool-Ergebnis zurückgeben, nicht werfen.
+  // So sieht das aufrufende Modell die Details und kann reagieren.
+  if (succeeded.length === 0) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text" as const,
+          text: `Alle Modelle sind gescheitert.\n\n${sections.join("\n\n")}`,
+        },
+      ],
+    };
+  }
+
+  // Vor dem Synthese-Push festhalten: das Log unten zählt Modelle,
+  // nicht Modelle plus Synthese.
+  const modelSuccessCount = succeeded.length;
+
+  if (synthesizeAnswers && succeeded.length >= 2) {
+    try {
+      const synthesis = await synthesize(prompt, succeeded, options);
+      sections.push(
+        `## Synthese (${synthesis.model})\n\n${synthesis.content}\n\n*Tokens: ${formatUsage(synthesis.usage)}*`
+      );
+      succeeded.push(synthesis);
+    } catch (error) {
+      sections.push(`## Synthese\n\n❌ Gescheitert: ${errorMessage(error)}`);
+    }
+  } else if (synthesizeAnswers) {
+    sections.push(`## Synthese\n\nÜbersprungen: nur eine Antwort vorhanden, nichts zu vergleichen.`);
+  }
+
+  const totalTokens = succeeded.reduce((sum, r) => sum + (r.usage?.total_tokens ?? 0), 0);
+  const promptInfo =
+    systemPrompt.length > 100 ? `${systemPrompt.slice(0, 100)}...` : systemPrompt;
+
+  const metadata = [
+    `**Metadata**`,
+    `Timestamp: ${new Date().toISOString()}`,
+    `Modelle: ${models.join(", ")}`,
+    `Effort: ${options.effort}`,
+    `Tokens gesamt: ${totalTokens}`,
+    `System-Prompt: ${promptInfo}`,
+  ].join("\n");
+
+  if (modelSuccessCount === settled.length) {
+    console.error(`✅ Alle ${models.length} Modelle haben geantwortet.`);
+  } else {
+    console.error(
+      `⚠️ ${modelSuccessCount}/${models.length} Modelle haben geantwortet, liefere Teilergebnis.`
+    );
+  }
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: `${sections.join("\n\n---\n\n")}\n\n---\n\n${metadata}`,
+      },
+    ],
+  };
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createServer, MODELS, SYNTHESIS_MODEL, VERSION } from "./server.js";
+import { ASK_GPT_MODEL, createServer, MODELS, SYNTHESIS_MODEL, VERSION } from "./server.js";
 
 async function main() {
   console.error(`🎯 Dual Model MCP Server ${VERSION} startet (STDIO)...`);
@@ -11,7 +11,7 @@ async function main() {
   await server.connect(transport);
 
   console.error("✅ Server läuft! Warte auf MCP-Anfragen via STDIO...");
-  console.error(`📡 Modelle: ${MODELS.join(", ")} | Synthese: ${SYNTHESIS_MODEL}`);
+  console.error(`📡 Modelle: ${MODELS.join(", ")} | ask_gpt: ${ASK_GPT_MODEL} | Synthese: ${SYNTHESIS_MODEL}`);
 }
 
 main().catch((error) => {

@@ -19,6 +19,11 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   Parameter, pro Anbieter uebersetzt), `MAX_TOKENS` 24000, Timeout 600 s.
   Begruendung: der Aufrufer ist im Alltag Opus 5; ein zweites
   Mittelklassemodell bringt keine Diversitaet, die den Preis wert waere.
+- Zweites Tool `ask_gpt` (seit 1.2.0): ein Modell (GPT-5.6 Sol, effort xhigh,
+  16000 Tokens), keine Synthese, gleiche Ausgabe. Beide Tools teilen sich
+  `runQuery()`. Eigenes Tool statt Parameter, damit der Aufrufer (claude.ai
+  waehlt nach Beschreibung) fuer die Alltagsfrage nicht Fable+Astra zieht.
+  Slash-Command `/gpt` (`~/.claude/commands/gpt.md`).
 - Synthese ist bewusst Opt-in und im `/dual`-Command aus: der Aufrufer liest
   ohnehin alle Rohantworten, die Synthese spart ihm keine Tokens, und das
   Synthese-Modell sieht nur den Prompt, nicht den Session-Kontext.
@@ -52,7 +57,8 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 ## Claude-Code-Integration
 
 - User-scoped registriert (`claude mcp add --scope user dual-model`).
-- Slash-Command `/dual` (`~/.claude/commands/dual.md`).
+- Slash-Commands `/dual` (Eskalation) und `/gpt` (Alltag) in
+  `~/.claude/commands/`.
 
 ## Fallstricke (waren schon einmal Bugs, Details im HANDOFF)
 
