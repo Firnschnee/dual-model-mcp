@@ -148,7 +148,7 @@ claude.ai talks to remote MCP servers over Streamable HTTP. The HTTP entry point
 | `temperature` | number | unset | Sampling temperature (0-2). Ignored by OpenAI and Anthropic reasoning models |
 | `synthesize` | boolean | false | Adds a comparison step: convergences, contradictions, unique points |
 
-`ask_gpt` is the everyday variant: one cheap model (default GPT-5.6 Sol at effort `xhigh`), no synthesis, same output format. It accepts `prompt`, `system_prompt`, `max_tokens` and `effort`. Keeping it as a separate tool means a caller that wants a quick second opinion does not accidentally trigger the expensive escalation tool.
+`ask_gpt` is the everyday variant: one cheap model (default GPT-5.6 Sol at effort `high`), no synthesis, same output format. It accepts `prompt`, `system_prompt`, `max_tokens` and `effort`. Keeping it as a separate tool means a caller that wants a quick second opinion does not accidentally trigger the expensive escalation tool.
 
 ## Configuration
 
@@ -160,7 +160,7 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | `MODELS` | `anthropic/claude-fable-5.1,openai/gpt-6-astra` | Comma-separated model IDs to query in parallel |
 | `REASONING_EFFORT` | `high` | Reasoning effort for all models (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) |
 | `ASK_GPT_MODEL` | `openai/gpt-5.6-sol` | Model behind the `ask_gpt` tool |
-| `ASK_GPT_EFFORT` | `xhigh` | Reasoning effort for `ask_gpt` |
+| `ASK_GPT_EFFORT` | `high` | Reasoning effort for `ask_gpt` |
 | `ASK_GPT_MAX_TOKENS` | `32000` | Max output tokens for `ask_gpt` |
 | `SYNTHESIS_MODEL` | `google/gemini-3.8-flash` | Model for the synthesis step |
 | `MAX_TOKENS` | `32000` | Max output tokens per model, including reasoning tokens |
@@ -179,12 +179,14 @@ No rebuild needed after changing `.env`; the MCP client restarts the server on d
 | **Language** | TypeScript |
 | **Protocol** | Model Context Protocol (MCP) |
 | **API** | OpenRouter (supports 200+ models) |
-| **Runtime** | Node.js 18+ (native `fetch`, no HTTP client dependency) |
+| **Runtime** | Node.js 20+ (native `fetch`, `AbortSignal.any`, no HTTP client dependency) |
 | **Build** | tsc + npm |
 
 ## Cost & Token Usage
 
-This is an escalation tool, not a daily driver: the default models are the most expensive tier of both vendors (roughly $10 in / $50 out per million tokens each), and `max_tokens` defaults to 32000 per model so that `effort: high` has room to think and still answer. Reasoning tokens count against `max_tokens` on every provider; if the budget runs out before the answer starts, the tool says so instead of reporting an empty response, and a truncated answer is flagged as such. A single hard question can cost a dollar or two. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
+This is an escalation tool, not a daily driver: the default models are the most expensive tier of both vendors (roughly $10 in / $50 out per million tokens each), and `max_tokens` defaults to 32000 per model so that `effort: high` has room to think and still answer. Reasoning tokens count against `max_tokens` on every provider; if the budget runs out before the answer starts, the tool says so instead of reporting an empty response, and a truncated answer is flagged as such. A single hard question can cost a dollar or two.
+
+Note on claude.ai: the web client gives up on a tool call after roughly four minutes. Calls that run longer are billed by OpenRouter but never reach the chat. The HTTP entry point aborts in-flight model calls when the client disconnects, and `ask_gpt` defaults to effort `high` rather than `xhigh` for that reason. Claude Code over stdio has no such limit. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
 
 ## Testing
 

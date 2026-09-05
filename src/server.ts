@@ -13,7 +13,7 @@ if (!OPENROUTER_API_KEY) {
   process.exit(1);
 }
 
-export const VERSION = "1.2.1";
+export const VERSION = "1.2.2";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
 // Eskalationsstufe, nicht Alltag: die jeweils stärksten Modelle beider Häuser.
@@ -44,7 +44,11 @@ const DEFAULT_EFFORT = effortFromEnv("REASONING_EFFORT", "high");
 // Zweitmeinung auf Augenhöhe mit Opus 5 medium liegt (AA-Index: Sol xhigh
 // punktgleich, zwei Drittel der Kosten).
 export const ASK_GPT_MODEL = process.env.ASK_GPT_MODEL?.trim() || "openai/gpt-5.6-sol";
-const ASK_GPT_EFFORT = effortFromEnv("ASK_GPT_EFFORT", "xhigh");
+// xhigh, nicht high, war der Plan (AA-Index punktgleich mit Opus 5 medium).
+// Praxis 2026-09-05: Sol xhigh brauchte 7 Minuten für eine Architekturfrage,
+// claude.ai bricht Tool-Calls nach etwa 4 Minuten ab, das Ergebnis verfällt,
+// die Kosten nicht. high lief in 1 bis 3 Minuten durch.
+const ASK_GPT_EFFORT = effortFromEnv("ASK_GPT_EFFORT", "high");
 // Sol auf xhigh hat bei einer Architekturfrage 16000 Tokens komplett ins
 // Denken gesteckt und keine Antwort geliefert. 32000 lässt Luft; bei 10 USD
 // pro Million Output ist das Worst Case 0,32 USD pro Aufruf.
@@ -122,6 +126,10 @@ interface QueryOptions {
   maxTokens: number;
   temperature?: number;
   effort: Effort;
+  // Vom Transport gesetzt, wenn der Client die Verbindung trennt. Dann den
+  // OpenRouter-Call abbrechen: das Ergebnis liest niemand mehr, bezahlt
+  // würde es trotzdem.
+  signal?: AbortSignal;
 }
 
 async function queryModel(
@@ -150,7 +158,9 @@ async function queryModel(
       reasoning: { effort: options.effort },
       ...(options.temperature !== undefined && { temperature: options.temperature }),
     }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: options.signal
+      ? AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), options.signal])
+      : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -186,7 +196,11 @@ async function queryModel(
 }
 
 function errorMessage(reason: unknown): string {
-  if (reason instanceof Error) return reason.message;
+  if (reason instanceof Error) {
+    if (reason.name === "TimeoutError") return `Timeout nach ${REQUEST_TIMEOUT_MS / 1000} s`;
+    if (reason.name === "AbortError") return "Abgebrochen, Client hat die Verbindung getrennt";
+    return reason.message;
+  }
   return String(reason);
 }
 
@@ -234,7 +248,13 @@ async function synthesize(
   });
 }
 
-export function createServer(): McpServer {
+export interface ServerOptions {
+  // HTTP-Modus: pro Request eine Server-Instanz, das Signal gehört zu diesem
+  // einen Request. STDIO hat keins.
+  signal?: AbortSignal;
+}
+
+export function createServer({ signal }: ServerOptions = {}): McpServer {
   const server = new McpServer({
     name: "dual-model-mcp-server",
     version: VERSION,
@@ -294,6 +314,7 @@ export function createServer(): McpServer {
           maxTokens: args.max_tokens ?? DEFAULT_MAX_TOKENS,
           temperature: args.temperature ?? DEFAULT_TEMPERATURE,
           effort: args.effort ?? DEFAULT_EFFORT,
+          signal,
         },
         synthesizeAnswers: args.synthesize ?? false,
       })
@@ -337,6 +358,7 @@ export function createServer(): McpServer {
           maxTokens: args.max_tokens ?? ASK_GPT_MAX_TOKENS,
           temperature: DEFAULT_TEMPERATURE,
           effort: args.effort ?? ASK_GPT_EFFORT,
+          signal,
         },
         synthesizeAnswers: false,
       })
@@ -387,6 +409,7 @@ async function runQuery({
   // Alle gescheitert: Fehler als Tool-Ergebnis zurückgeben, nicht werfen.
   // So sieht das aufrufende Modell die Details und kann reagieren.
   if (succeeded.length === 0) {
+    console.error(`❌ Alle ${models.length} Modelle gescheitert.`);
     return {
       isError: true,
       content: [

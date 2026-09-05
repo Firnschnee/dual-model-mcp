@@ -13,13 +13,14 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   Synthese. Beide Entries teilen sich diesen Kern.
 - N Modelle statt fix zwei: `MODELS` als kommaseparierte Liste in `.env`, kein
   Rebuild noetig. Optionale Synthese (`synthesize: true`, Default-Modell Gemini
-  3.8 Flash). Native `fetch`, kein HTTP-Client-Dependency. Node 18+.
+  3.8 Flash). Native `fetch`, kein HTTP-Client-Dependency. Node 20+
+  (`AbortSignal.any`).
 - Positionierung seit 2026-09-05: Eskalationsstufe, nicht Alltag. Defaults
   Fable 5.1 + GPT-6 Astra, `reasoning.effort=high` (OpenRouter-einheitlicher
   Parameter, pro Anbieter uebersetzt), `MAX_TOKENS` 32000, Timeout 600 s.
   Begruendung: der Aufrufer ist im Alltag Opus 5; ein zweites
   Mittelklassemodell bringt keine Diversitaet, die den Preis wert waere.
-- Zweites Tool `ask_gpt` (seit 1.2.0): ein Modell (GPT-5.6 Sol, effort xhigh,
+- Zweites Tool `ask_gpt` (seit 1.2.0): ein Modell (GPT-5.6 Sol, effort high,
   32000 Tokens), keine Synthese, gleiche Ausgabe. Beide Tools teilen sich
   `runQuery()`. Eigenes Tool statt Parameter, damit der Aufrufer (claude.ai
   waehlt nach Beschreibung) fuer die Alltagsfrage nicht Fable+Astra zieht.
@@ -75,6 +76,12 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   `finish_reason: length` heisst "Budget komplett ins Denken gegangen", nicht
   "Provider-Ausfall" (Sol xhigh, 16000 Tokens, Architekturfrage, 2026-09-05).
   `finish_reason` auswerten und Abschneiden im Ergebnis markieren.
+- claude.ai bricht Tool-Calls nach etwa 4 Minuten ab ("The connector's server
+  isn't responding"); 3 min 17 s lief durch, 7 min nicht. Sol xhigh lag bei
+  einer Architekturfrage bei 7 Minuten, deshalb `ask_gpt` auf high. Der
+  HTTP-Entry bricht bei Client-Trennung die OpenRouter-Calls ab, sonst wird
+  ein Ergebnis bezahlt, das niemand liest. Claude Code (STDIO) hat dieses
+  Limit nicht, dort ist xhigh per `effort`-Parameter weiter moeglich.
 
 ## Offen
 

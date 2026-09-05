@@ -72,12 +72,20 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   try {
-    const server = createServer();
+    // Trennt der Client vorzeitig (claude.ai gibt Tool-Calls nach einigen
+    // Minuten auf), laufende OpenRouter-Calls abbrechen statt ins Leere
+    // fertigzurechnen.
+    const abort = new AbortController();
+    const server = createServer({ signal: abort.signal });
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
     res.on("close", () => {
+      if (!res.writableFinished) {
+        console.error("⚠️ Client hat die Verbindung getrennt, breche laufende Modell-Calls ab.");
+        abort.abort();
+      }
       transport.close();
       server.close();
     });
