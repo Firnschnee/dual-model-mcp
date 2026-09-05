@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-An MCP server that queries multiple LLMs (default: Claude Opus 5 and OpenAI GPT-5.6 Sol) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
+An MCP server that queries multiple LLMs (default: Claude Fable 5.1 and OpenAI GPT-6 Astra, reasoning effort `high`) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them.
 
 Runs locally over stdio (Claude Code, Claude Desktop, Cherry Studio) **and** remotely over Streamable HTTP – so you can use it from claude.ai on the web and in the mobile apps as a [custom connector](#with-claudeai-web--mobile).
 
@@ -23,7 +23,7 @@ Sometimes a single AI model gets stuck in a particular perspective or reasoning 
 - **Resilient** – If one model fails, you still get the others' answers instead of a total error
 - **Synthesis step (optional)** – A third, cheap model compares the answers: convergences, contradictions, unique points
 - **Token usage reporting** – Every response includes per-model and total token counts
-- **Configurable without rebuild** – Models, max_tokens, temperature, timeout via `.env`; per-call overrides via tool parameters
+- **Configurable without rebuild** – Models, reasoning effort, max_tokens, temperature, timeout via `.env`; per-call overrides via tool parameters
 - **N models, not just two** – Configure any number of OpenRouter models
 - **Structured responses** – Default system prompt produces 6-8 concise paragraphs (analysis, context, evidence, arguments, alternatives, reflection, conclusion); custom system prompts supported
 - **Easy integration** – Works with Claude Code, Claude Desktop, Cherry Studio, or any MCP client
@@ -143,8 +143,9 @@ claude.ai talks to remote MCP servers over Streamable HTTP. The HTTP entry point
 | `prompt` | string | (required) | The prompt sent to all models |
 | `system_prompt` | string | structured 6-8 paragraph prompt | Custom system prompt |
 | `models` | string[] | from `.env` / built-in | OpenRouter model IDs for this call only |
-| `max_tokens` | number | 6000 | Max output tokens per model |
-| `temperature` | number | 0.7 | Sampling temperature (0-2) |
+| `max_tokens` | number | 24000 | Max output tokens per model (reasoning tokens count against this) |
+| `effort` | `none`…`max` | `high` | Reasoning effort, passed through OpenRouter's unified `reasoning` parameter |
+| `temperature` | number | unset | Sampling temperature (0-2). Ignored by OpenAI and Anthropic reasoning models |
 | `synthesize` | boolean | false | Adds a comparison step: convergences, contradictions, unique points |
 
 ## Configuration
@@ -154,11 +155,12 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENROUTER_API_KEY` | (required) | Your OpenRouter API key |
-| `MODELS` | `anthropic/claude-opus-5,openai/gpt-5.6-sol` | Comma-separated model IDs to query in parallel |
-| `SYNTHESIS_MODEL` | `anthropic/claude-haiku-4.5` | Model for the synthesis step |
-| `MAX_TOKENS` | `6000` | Max output tokens per model |
-| `TEMPERATURE` | `0.7` | Sampling temperature |
-| `REQUEST_TIMEOUT_MS` | `120000` | Per-request timeout |
+| `MODELS` | `anthropic/claude-fable-5.1,openai/gpt-6-astra` | Comma-separated model IDs to query in parallel |
+| `REASONING_EFFORT` | `high` | Reasoning effort for all models (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) |
+| `SYNTHESIS_MODEL` | `google/gemini-3.8-flash` | Model for the synthesis step |
+| `MAX_TOKENS` | `24000` | Max output tokens per model, including reasoning tokens |
+| `TEMPERATURE` | unset | Sampling temperature; only sent when set |
+| `REQUEST_TIMEOUT_MS` | `600000` | Per-request timeout |
 | `MCP_PATH_SECRET` | (required in HTTP mode) | Secret URL path segment, min. 16 chars |
 | `MCP_HTTP_HOST` | `127.0.0.1` | HTTP bind address (keep local behind a reverse proxy) |
 | `MCP_HTTP_PORT` | `3777` | HTTP port |
@@ -177,7 +179,7 @@ No rebuild needed after changing `.env`; the MCP client restarts the server on d
 
 ## Cost & Token Usage
 
-Be aware that this *might* cost a lot of tokens! `max_tokens` defaults to 6000 per model to allow deep-dive analyses. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
+This is an escalation tool, not a daily driver: the default models are the most expensive tier of both vendors (roughly $10 in / $50 out per million tokens each), and `max_tokens` defaults to 24000 per model so that `effort: high` has room to think and still answer. A single hard question can cost a dollar or two. Every response reports actual token usage per model and in total, so you can see what a query cost. For quick factual questions, pass a smaller `max_tokens` per call.
 
 ## Testing
 

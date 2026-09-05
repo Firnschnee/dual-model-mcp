@@ -12,8 +12,19 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 - `src/server.ts` - gemeinsamer Kern: Tool-Definition, OpenRouter-Calls,
   Synthese. Beide Entries teilen sich diesen Kern.
 - N Modelle statt fix zwei: `MODELS` als kommaseparierte Liste in `.env`, kein
-  Rebuild noetig. Optionale Synthese (`synthesize: true`, Default-Modell Haiku
-  4.5). Native `fetch`, kein HTTP-Client-Dependency. Node 18+.
+  Rebuild noetig. Optionale Synthese (`synthesize: true`, Default-Modell Gemini
+  3.8 Flash). Native `fetch`, kein HTTP-Client-Dependency. Node 18+.
+- Positionierung seit 2026-09-05: Eskalationsstufe, nicht Alltag. Defaults
+  Fable 5.1 + GPT-6 Astra, `reasoning.effort=high` (OpenRouter-einheitlicher
+  Parameter, pro Anbieter uebersetzt), `MAX_TOKENS` 24000, Timeout 600 s.
+  Begruendung: der Aufrufer ist im Alltag Opus 5; ein zweites
+  Mittelklassemodell bringt keine Diversitaet, die den Preis wert waere.
+- Synthese ist bewusst Opt-in und im `/dual`-Command aus: der Aufrufer liest
+  ohnehin alle Rohantworten, die Synthese spart ihm keine Tokens, und das
+  Synthese-Modell sieht nur den Prompt, nicht den Session-Kontext.
+- `temperature` wird nur gesendet, wenn explizit gesetzt: Fable, GPT-6,
+  Sonnet 5 unterstuetzen den Parameter laut OpenRouter-Modellliste nicht,
+  OpenRouter verwirft ihn dann still (verifiziert 2026-09-05, kein Fehler).
 
 ## Remote-Deployment (Hetzner, geteilt mit co-brain)
 
@@ -30,6 +41,13 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   scheitern zuverlaessig, `dangerouslyDisableSandbox` behebt den Fall; sonst
   Freigabe-Anfrage im 1Password-Tray pruefen (roter Punkt, bei ausgeblendeter
   Taskleiste unsichtbar).
+- SSH aus Claude Code: nur Windows-OpenSSH ueber PowerShell
+  (`C:\Windows\System32\OpenSSH\ssh.exe root@co-brain`). Git-Bash-`ssh` sieht
+  die 1Password-Named-Pipe nicht und scheitert mit "Permission denied
+  (publickey)", nicht mit einem Agent-Fehler.
+- Secrets liegen in `/etc/dual-model-mcp.env` (systemd `EnvironmentFile`),
+  nicht in `/opt/dual-model-mcp/.env`. Build (`build/`) ist nicht eingecheckt:
+  nach `git pull` immer `npm run build && systemctl restart dual-model-mcp`.
 
 ## Claude-Code-Integration
 
@@ -50,8 +68,7 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 
 ## Offen
 
-- Remote-Instanz auf dem Server laeuft moeglicherweise auf altem Stand: Pull +
-  `systemctl restart dual-model-mcp` gegen den aktuellen Release pruefen
-  (nicht verifiziert).
+- Remote-Instanz zuletzt am 2026-09-05 verifiziert: Stand `8350fa1` (1.0.1),
+  `initialize` und `tools/list` ueber die oeffentliche Caddy-Route liefern 200.
 - Nachhaltiger 1Password-Fix waere eine dauerhafte `ssh.exe`-Freigabe in den
   1Password-Developer-Einstellungen, noch nicht umgesetzt.

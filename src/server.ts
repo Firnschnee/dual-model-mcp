@@ -13,20 +13,40 @@ if (!OPENROUTER_API_KEY) {
   process.exit(1);
 }
 
-export const VERSION = "1.0.1";
+export const VERSION = "1.1.0";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
-const DEFAULT_MODELS = ["anthropic/claude-opus-5", "openai/gpt-5.6-sol"];
+// Eskalationsstufe, nicht Alltag: die jeweils stärksten Modelle beider Häuser.
+// Wer den Aufrufer (Opus) nicht überbieten kann, braucht nicht gefragt zu werden.
+const DEFAULT_MODELS = ["anthropic/claude-fable-5.1", "openai/gpt-6-astra"];
 // .length statt ??: MODELS="" ergibt nach split/filter ein leeres Array,
 // das nicht nullish ist und sonst die Defaults verdrängen würde.
 const modelsFromEnv = process.env.MODELS?.split(",")
   .map((m) => m.trim())
   .filter(Boolean);
 export const MODELS = modelsFromEnv?.length ? modelsFromEnv : DEFAULT_MODELS;
-export const SYNTHESIS_MODEL = process.env.SYNTHESIS_MODEL ?? "anthropic/claude-haiku-4.5";
-const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 6000);
-const DEFAULT_TEMPERATURE = floatFromEnv("TEMPERATURE", 0.7, 2);
-const REQUEST_TIMEOUT_MS = intFromEnv("REQUEST_TIMEOUT_MS", 120_000);
+export const SYNTHESIS_MODEL = process.env.SYNTHESIS_MODEL ?? "google/gemini-3.8-flash";
+// Reasoning-Tokens zählen bei allen drei Anbietern gegen max_tokens; bei
+// Anthropic leitet OpenRouter das Denkbudget als Anteil davon ab. 6000 wäre
+// mit effort=high fast nur Denken und kaum Antwort.
+const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 24_000);
+// Temperature nur senden, wenn explizit gesetzt: die Default-Modelle
+// (Fable, GPT-6) unterstützen den Parameter nicht, OpenRouter verwirft ihn
+// dann stillschweigend. Kein Default vortäuschen, der nicht wirkt.
+const DEFAULT_TEMPERATURE = floatFromEnv("TEMPERATURE", undefined, 2);
+const REQUEST_TIMEOUT_MS = intFromEnv("REQUEST_TIMEOUT_MS", 600_000);
+
+const EFFORT_LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+type Effort = (typeof EFFORT_LEVELS)[number];
+const DEFAULT_EFFORT = effortFromEnv("REASONING_EFFORT", "high");
+
+function effortFromEnv(name: string, fallback: Effort): Effort {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  if ((EFFORT_LEVELS as readonly string[]).includes(raw)) return raw as Effort;
+  console.error(`⚠️ Ungültiger Wert für ${name} ("${raw}"), verwende ${fallback}.`);
+  return fallback;
+}
 
 export function intFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -39,7 +59,7 @@ export function intFromEnv(name: string, fallback: number): number {
   return parsed;
 }
 
-function floatFromEnv(name: string, fallback: number, max = Infinity): number {
+function floatFromEnv<T extends number | undefined>(name: string, fallback: T, max = Infinity): number | T {
   const raw = process.env[name];
   if (!raw) return fallback;
   const parsed = parseFloat(raw);
@@ -87,7 +107,8 @@ interface OpenRouterResponse {
 
 interface QueryOptions {
   maxTokens: number;
-  temperature: number;
+  temperature?: number;
+  effort: Effort;
 }
 
 async function queryModel(
@@ -110,8 +131,11 @@ async function queryModel(
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },
       ],
-      temperature: options.temperature,
       max_tokens: options.maxTokens,
+      // OpenRouter-einheitlich; wird pro Anbieter übersetzt (OpenAI
+      // reasoning_effort, Anthropic budget_tokens, Gemini thinkingLevel).
+      reasoning: { effort: options.effort },
+      ...(options.temperature !== undefined && { temperature: options.temperature }),
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -163,9 +187,11 @@ async function synthesize(
     .map((r) => `### Antwort von ${r.model}\n\n${r.content}`)
     .join("\n\n");
   const synthesisPrompt = `Ursprüngliche Frage:\n${prompt}\n\n${answers}`;
+  // Vergleichsarbeit, kein Tiefenproblem: mittlerer Effort reicht.
   return queryModel(SYNTHESIS_MODEL, synthesisPrompt, SYNTHESIS_SYSTEM_PROMPT, {
-    maxTokens: Math.min(options.maxTokens, 2000),
+    maxTokens: Math.min(options.maxTokens, 4000),
     temperature: 0.3,
+    effort: "medium",
   });
 }
 
@@ -180,9 +206,10 @@ export function createServer(): McpServer {
     {
       title: "Multi-Modell-Anfrage",
       description:
-        `Schickt eine Prompt parallel an mehrere Modelle via OpenRouter (Standard: ${MODELS.join(", ")}). ` +
-        "Liefert alle Antworten nebeneinander, optional mit Synthese (Konvergenzen, Widersprüche, Unikate). " +
-        "Standard-System-Prompt: strukturierte Antwort in 6-8 Absätzen.",
+        `Schickt eine Prompt parallel an mehrere Modelle via OpenRouter (Standard: ${MODELS.join(", ")}, ` +
+        `Reasoning-Effort ${DEFAULT_EFFORT}). Eskalationsstufe für harte Probleme, nicht für Routinefragen: ` +
+        "teuer und langsam. Liefert alle Antworten nebeneinander, optional mit Synthese " +
+        "(Konvergenzen, Widersprüche, Unikate). Standard-System-Prompt: strukturierte Antwort in 6-8 Absätzen.",
       inputSchema: {
         prompt: z.string().describe("Die Prompt für alle Modelle"),
         system_prompt: z
@@ -205,7 +232,14 @@ export function createServer(): McpServer {
           .min(0)
           .max(2)
           .optional()
-          .describe(`Optional: Temperature. Standard: ${DEFAULT_TEMPERATURE}`),
+          .describe(
+            `Optional: Temperature. Standard: ${DEFAULT_TEMPERATURE ?? "nicht gesetzt (Provider-Default)"}. ` +
+              "Reasoning-Modelle von OpenAI und Anthropic ignorieren den Parameter."
+          ),
+        effort: z
+          .enum(EFFORT_LEVELS)
+          .optional()
+          .describe(`Optional: Reasoning-Effort für alle Modelle. Standard: ${DEFAULT_EFFORT}`),
         synthesize: z
           .boolean()
           .optional()
@@ -218,9 +252,10 @@ export function createServer(): McpServer {
       const options: QueryOptions = {
         maxTokens: args.max_tokens ?? DEFAULT_MAX_TOKENS,
         temperature: args.temperature ?? DEFAULT_TEMPERATURE,
+        effort: args.effort ?? DEFAULT_EFFORT,
       };
 
-      console.error(`🚀 Starte parallele Queries: ${models.join(", ")}`);
+      console.error(`🚀 Starte parallele Queries (effort=${options.effort}): ${models.join(", ")}`);
 
       const settled = await Promise.allSettled(
         models.map((model) => queryModel(model, args.prompt, systemPrompt, options))
@@ -281,6 +316,7 @@ export function createServer(): McpServer {
         `**Metadata**`,
         `Timestamp: ${new Date().toISOString()}`,
         `Modelle: ${models.join(", ")}`,
+        `Effort: ${options.effort}`,
         `Tokens gesamt: ${totalTokens}`,
         `System-Prompt: ${promptInfo}`,
       ].join("\n");

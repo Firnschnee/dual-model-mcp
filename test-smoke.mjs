@@ -27,6 +27,10 @@ const result = await client.callTool({
   arguments: {
     prompt: "Was ist die Hauptstadt von Frankreich?",
     system_prompt: "Antworte in genau einem kurzen Satz. Maximal 12 Woerter.",
+    // Default-Modelle sind die teuersten beider Haeuser: Effort und Budget
+    // fuer den Smoke-Test bewusst klein halten.
+    effort: "low",
+    max_tokens: 2000,
   },
 });
 
