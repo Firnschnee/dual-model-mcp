@@ -13,12 +13,12 @@ if (!OPENROUTER_API_KEY) {
   process.exit(1);
 }
 
-export const VERSION = "1.2.2";
+export const VERSION = "1.3.0";
 
 // Konfiguration per Env, mit Defaults. Kein Rebuild nötig, um Modelle zu wechseln.
 // Eskalationsstufe, nicht Alltag: die jeweils stärksten Modelle beider Häuser.
 // Wer den Aufrufer (Opus) nicht überbieten kann, braucht nicht gefragt zu werden.
-const DEFAULT_MODELS = ["anthropic/claude-fable-5.1", "openai/gpt-6-astra"];
+const DEFAULT_MODELS = ["anthropic/claude-fable-5.2", "openai/gpt-6.2-astra-pro"];
 // .length statt ??: MODELS="" ergibt nach split/filter ein leeres Array,
 // das nicht nullish ist und sonst die Defaults verdrängen würde.
 const modelsFromEnv = process.env.MODELS?.split(",")
@@ -31,7 +31,7 @@ export const SYNTHESIS_MODEL = process.env.SYNTHESIS_MODEL ?? "google/gemini-3.8
 // mit effort=high fast nur Denken und kaum Antwort.
 const DEFAULT_MAX_TOKENS = intFromEnv("MAX_TOKENS", 32_000);
 // Temperature nur senden, wenn explizit gesetzt: die Default-Modelle
-// (Fable, GPT-6) unterstützen den Parameter nicht, OpenRouter verwirft ihn
+// (Fable, GPT-6.x) unterstützen den Parameter nicht, OpenRouter verwirft ihn
 // dann stillschweigend. Kein Default vortäuschen, der nicht wirkt.
 const DEFAULT_TEMPERATURE = floatFromEnv("TEMPERATURE", undefined, 2);
 const REQUEST_TIMEOUT_MS = intFromEnv("REQUEST_TIMEOUT_MS", 600_000);

@@ -16,7 +16,8 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   3.8 Flash). Native `fetch`, kein HTTP-Client-Dependency. Node 20+
   (`AbortSignal.any`).
 - Positionierung seit 2026-09-05: Eskalationsstufe, nicht Alltag. Defaults
-  Fable 5.1 + GPT-6 Astra, `reasoning.effort=high` (OpenRouter-einheitlicher
+  Fable 5.2 + GPT-6.2 Astra Pro (seit 1.3.0, 2026-11-24; vorher Fable 5.1 +
+  GPT-6 Astra), `reasoning.effort=high` (OpenRouter-einheitlicher
   Parameter, pro Anbieter uebersetzt), `MAX_TOKENS` 32000, Timeout 600 s.
   Begruendung: der Aufrufer ist im Alltag Opus 5; ein zweites
   Mittelklassemodell bringt keine Diversitaet, die den Preis wert waere.
@@ -28,9 +29,10 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 - Synthese ist bewusst Opt-in und im `/dual`-Command aus: der Aufrufer liest
   ohnehin alle Rohantworten, die Synthese spart ihm keine Tokens, und das
   Synthese-Modell sieht nur den Prompt, nicht den Session-Kontext.
-- `temperature` wird nur gesendet, wenn explizit gesetzt: Fable, GPT-6,
+- `temperature` wird nur gesendet, wenn explizit gesetzt: Fable, GPT-6.x,
   Sonnet 5 unterstuetzen den Parameter laut OpenRouter-Modellliste nicht,
-  OpenRouter verwirft ihn dann still (verifiziert 2026-09-05, kein Fehler).
+  OpenRouter verwirft ihn dann still (verifiziert 2026-09-05, fuer Fable 5.2
+  und GPT-6.2 Astra Pro per Modellliste erneut geprueft 2026-11-24).
 
 ## Remote-Deployment (Hetzner, geteilt mit co-brain)
 

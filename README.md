@@ -1,6 +1,6 @@
 # Dual Model MCP Server
 
-An MCP server that queries multiple LLMs (default: Claude Fable 5.1 and OpenAI GPT-6 Astra, reasoning effort `high`) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them. A second tool, `ask_gpt`, asks a single cheap model (default GPT-5.6 Sol) for an everyday second opinion.
+An MCP server that queries multiple LLMs (default: Claude Fable 5.2 and OpenAI GPT-6.2 Astra Pro, reasoning effort `high`) **in parallel** via OpenRouter and returns side-by-side responses, optionally with an automatic synthesis step that compares them. A second tool, `ask_gpt`, asks a single cheap model (default GPT-5.6 Sol) for an everyday second opinion.
 
 Runs locally over stdio (Claude Code, Claude Desktop, Cherry Studio) **and** remotely over Streamable HTTP – so you can use it from claude.ai on the web and in the mobile apps as a [custom connector](#with-claudeai-web--mobile).
 
@@ -157,7 +157,7 @@ All settings live in `.env` (see [.env.example](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENROUTER_API_KEY` | (required) | Your OpenRouter API key |
-| `MODELS` | `anthropic/claude-fable-5.1,openai/gpt-6-astra` | Comma-separated model IDs to query in parallel |
+| `MODELS` | `anthropic/claude-fable-5.2,openai/gpt-6.2-astra-pro` | Comma-separated model IDs to query in parallel |
 | `REASONING_EFFORT` | `high` | Reasoning effort for all models (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) |
 | `ASK_GPT_MODEL` | `openai/gpt-5.6-sol` | Model behind the `ask_gpt` tool |
 | `ASK_GPT_EFFORT` | `high` | Reasoning effort for `ask_gpt` |
