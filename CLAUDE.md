@@ -36,7 +36,8 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 
 ## Remote-Deployment (Hetzner, geteilt mit co-brain)
 
-- Laeuft auf demselben Server wie co-brain, SSH via Tailscale als `root@co-brain`.
+- Laeuft auf demselben Server wie co-brain, SSH via Tailscale als `root@heim`
+  (Tailscale-Host bis November 2026 `co-brain`, der Projektname blieb).
 - systemd-Unit `dual-model-mcp.service` unter `/opt/dual-model-mcp`.
 - Caddy routet `vault.hopsel.industries/<secret>/mcp` an `127.0.0.1:3777`;
   alles andere geht an den Vault (Port 3000).
@@ -50,7 +51,7 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
   Freigabe-Anfrage im 1Password-Tray pruefen (roter Punkt, bei ausgeblendeter
   Taskleiste unsichtbar).
 - SSH aus Claude Code: nur Windows-OpenSSH ueber PowerShell
-  (`C:\Windows\System32\OpenSSH\ssh.exe root@co-brain`). Git-Bash-`ssh` sieht
+  (`C:\Windows\System32\OpenSSH\ssh.exe root@heim`). Git-Bash-`ssh` sieht
   die 1Password-Named-Pipe nicht und scheitert mit "Permission denied
   (publickey)", nicht mit einem Agent-Fehler.
 - Secrets liegen in `/etc/dual-model-mcp.env` (systemd `EnvironmentFile`),
@@ -87,7 +88,14 @@ fuer die Arbeit am Code, nicht die Nutzeranleitung.
 
 ## Offen
 
-- Remote-Instanz zuletzt am 2026-09-05 verifiziert: Stand `8350fa1` (1.0.1),
-  `initialize` und `tools/list` ueber die oeffentliche Caddy-Route liefern 200.
+- Remote-Instanz am 2026-11-24 auf `0dd292d` (1.3.0) deployt, Dienst aktiv,
+  Startlog meldet die neuen Modelle. Die oeffentliche Caddy-Route wurde dabei
+  nicht erneut geprueft (zuletzt 2026-09-05 mit 1.0.1: 200).
+- OpenRouter-Konto erzwingt ZDR fuer Google ("ZDR only"). Damit ist das
+  Synthese-Default `google/gemini-3.8-flash` gesperrt (404, verifiziert
+  2026-11-24). Synthese ist Opt-in und in `/dual` aus, also kein akuter
+  Ausfall. Fix: in OpenRouter fuer Google "Allow Safety Retention" oder ein
+  anderes `SYNTHESIS_MODEL`. Fuer Anthropic ist ZDR seit 2026-11-24 aus,
+  sonst kommt Fable nicht durch.
 - Nachhaltiger 1Password-Fix waere eine dauerhafte `ssh.exe`-Freigabe in den
   1Password-Developer-Einstellungen, noch nicht umgesetzt.
